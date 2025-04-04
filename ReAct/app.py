@@ -72,6 +72,11 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import time
 import random
+def extract_urls_from_markdown(markdown_text: str) -> list:
+    """Extract all URLs from markdown-formatted text."""
+    url_pattern = r'https?://[^\s\)\]\"]+'
+    urls = re.findall(url_pattern, markdown_text)
+    return urls
 
 # --- Configuration & Constants ---
 load_dotenv() # Load .env file if it exists
@@ -639,6 +644,8 @@ You have access to the following tools:
 - When the user wants to CREATE a new file or REPLACE/OVERWRITE an existing file, plan to use `write_file` with `append=false` (default)
 - When the user wants to DELETE or REMOVE a file, plan to use `delete_file` with the filename
 - Examples where `append=true` is needed: "add a line to file.txt", "append text to file.txt", "update file.txt with new content"
+- After performing a web search, URLs are extracted and stored in memory under the key "search_result_urls". Use `memory_get("search_result_urls")` to retrieve the list of URLs for scraping or further processing.
+
 - Examples where `delete_file` is needed: "delete file.txt", "remove file.txt", "erase file.txt"
 
 **IMPORTANT FOR MEMORY OPERATIONS:**
@@ -1224,6 +1231,10 @@ if st.session_state.plan is not None and 0 <= st.session_state.current_step_inde
                 current_step["result"] = observation
                 if "Error" in observation[:20] or "Error" in reasoning[:20]: # Basic error check
                     current_step["status"] = "Failed"
+                    # Special handling: if this step was web_search, extract URLs from markdown result
+                    if current_step.get("tool_suggestion") == "web_search" and isinstance(observation, str):
+                        urls = extract_urls_from_markdown(observation)
+                        st.session_state.context["search_result_urls"] = urls
                     st.session_state.messages.append({"role": "assistant", "content": f"Step {current_step['step_id']} failed. Stopping execution."})
                     st.session_state.current_step_index = -2 # Indicate failure halt
                 else:
