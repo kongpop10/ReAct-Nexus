@@ -867,7 +867,6 @@ Provide *only* the JSON object as your response.
 # --- Streamlit UI ---
 st.set_page_config(layout="wide")
 st.title("📄 Plan-ReAct Agent")
-st.caption(f"Timestamp: {datetime.now().isoformat()}")
 st.markdown("---")
 
 # --- Configuration Sidebar ---
