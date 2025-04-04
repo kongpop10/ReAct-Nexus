@@ -18,7 +18,7 @@ def generate_title(messages, client=None):
             # Use the configured model to generate a title
             try:
                 # Get the title model from session state, with fallback to default
-                title_model = st.session_state.get('title_model', "google/gemini-2.0-flash-exp:free")
+                title_model = st.session_state.get('title_model')
 
                 completion = client.chat.completions.create(
                     model=title_model,
