@@ -1,6 +1,6 @@
 import json
 import os
-from news_scraper import WebScraper
+from data_acquisition.news_scraper import WebScraper
 
 def main():
     # Sample articles from the failed execution

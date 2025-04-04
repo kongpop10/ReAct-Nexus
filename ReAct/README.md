@@ -1,15 +1,17 @@
-# AI Agent Workspace
+# ReAct: Conversational AI Workspace
 
-This is a **Streamlit-based conversational AI workspace** integrating multiple AI models, web search, scraping, stock data retrieval, conversation management, and Python code execution.
+A **modular Streamlit-based platform** integrating multiple AI models, real-time search, web scraping, stock data retrieval, conversation management, and Python code execution capabilities.
+
+---
 
 ## Features
 
 - **Conversational AI**: Chat with LLMs (OpenAI, Gemini via OpenRouter)
 - **Automated Title Generation** for conversations using LLMs
-- **Web Search**: Real-time search via Tavily API
-- **Web Scraping**: Extracts content from URLs with BeautifulSoup
-- **Stock Data Retrieval**: Fetches real-time stock info via Alpha Vantage API
-- **Python Code Execution**: Run code snippets dynamically (demo, unsafe for production)
+- **Web Search**: Real-time queries via Tavily API
+- **Web Scraping**: Extract content from URLs with BeautifulSoup
+- **Stock Data Retrieval**: Fetch real-time stock info via Alpha Vantage API
+- **Python Code Execution**: Run code snippets dynamically (demo purposes only; unsafe for production)
 - **Conversation Management**:
   - Save/load conversations with metadata (title, timestamp)
   - Automatic conversation saving and indexing
@@ -17,9 +19,12 @@ This is a **Streamlit-based conversational AI workspace** integrating multiple A
 - **File Operations**: Read, write, delete, list files within a workspace directory
 - **Memory Management**: Store and manage conversation context and variables
 
+---
+
 ## Installation
 
 1. **Clone the repository**
+
 2. **Install dependencies**
 
 ```bash
@@ -34,6 +39,8 @@ pip install -r requirements.txt
 - python-dotenv
 - tavily-python
 
+---
+
 ## Configuration
 
 Create a `.env` file in the root directory and add your API keys:
@@ -46,6 +53,8 @@ ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
 
 These are required for AI completions, web search, and stock data respectively.
 
+---
+
 ## Usage
 
 Run the app with Streamlit:
@@ -54,35 +63,81 @@ Run the app with Streamlit:
 streamlit run app.py
 ```
 
-Navigate to the local URL provided by Streamlit to access the web interface.
+Navigate to the local URL provided by Streamlit to access the interface.
+
+---
 
 ## Project Structure
 
 ```
-app.py                     # Main Streamlit app with integrated tools
-ai_client.py               # AI client logic
-conversation_manager.py    # Conversation history management
-memory_manager.py          # Memory/context management
-file_utils.py              # File utility functions
-stock_data.py              # Stock API integration
-web_tools.py               # Web scraping and search tools
-
-agent_workspace/           # Workspace directory for saved files & conversation data
-  ├── news_scraper.py
-  ├── latex_processor.py
-  ├── process_news.py
-  ├── process_search_results.py
-  └── (saved conversation JSON files)
+/ReAct
+│
+├── ai_module/            # AI logic, planning, execution
+│   ├── __init__.py
+│   ├── ai_client.py
+│
+├── data_acquisition/     # Web scraping, news, APIs
+│   ├── __init__.py
+│   ├── news_scraper.py
+│   ├── process_news.py
+│   ├── process_search_results.py
+│   ├── web_tools.py
+│   ├── stock_data.py
+│
+├── processing/           # Text & LaTeX processing, formatting
+│   ├── __init__.py
+│   ├── latex_processor.py
+│   ├── format_results.py
+│   ├── text_processor.py
+│
+├── storage/              # File/memory management, conversations
+│   ├── __init__.py
+│   ├── file_utils.py
+│   ├── memory_manager.py
+│   ├── conversation_manager.py
+│
+├── tests/                # All tests
+│   ├── __init__.py
+│   ├── test_latex_processing.py
+│
+├── data/                 # Data files, conversation logs, scraped content
+│   ├── conversations_index.json
+│   ├── conversation_*.json
+│   ├── *.txt
+│
+├── app.py                # Streamlit app entrypoint
+├── requirements.txt
+├── README.md
+├── .gitignore
 ```
 
-## Security Warning
+### Summary of key folders:
 
-- **The app allows arbitrary Python code execution via `exec()`. This is unsafe for production use.**
-- Use in a secure, sandboxed environment only.
+- **`ai_module/`**: AI interaction, planning, execution logic
+- **`data_acquisition/`**: External data collection (scraping, APIs)
+- **`processing/`**: Data post-processing, LaTeX handling, formatting
+- **`storage/`**: Persistent storage, memory, conversation management
+- **`tests/`**: Test scripts
+- **`data/`**: Data files, logs, scraped content
+
+---
+
+## Additional Notes
+
+- The reorganization improves modularity, clarity, and scalability.
+- Data files (`*.json`, `*.txt`) are now centralized in the `data/` folder.
+- Configurations via `.env` (API keys) are required.
+- The app **allows arbitrary Python code execution**, which is **unsafe for production**—use only in a secure, sandboxed environment.
+- Consider adding more tests and refactoring as needed.
+- For configs/secrets, `.env` is recommended, but a dedicated `config/` folder can be added.
+
+---
 
 ## License
 
-[Specify your license here]
+MIT License
+
+---
 
 ## Credits
 

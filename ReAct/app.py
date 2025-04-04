@@ -93,7 +93,7 @@ def web_search(query: str) -> str:
         return json.dumps({"error": "TAVILY_API_KEY not found in environment variables"})
 
     try:
-        from agent_workspace.process_search_results import process_search_results
+        from data_acquisition.process_search_results import process_search_results
 
         tavily = TavilyClient(api_key=api_key)
         search_result = tavily.search(query=query, max_results=3)
@@ -116,7 +116,7 @@ def web_scrape(url: str = None, urls: str = None) -> str:
     if target_url is None:
         return "Error: No URL provided. Please provide a URL using the 'url' parameter."
 
-    from agent_workspace.news_scraper import WebScraper
+    from data_acquisition.news_scraper import WebScraper
 
     try:
         scraper = WebScraper()
@@ -582,7 +582,7 @@ Available Tools:
 - list_files(directory: str = None): Lists all files in the workspace directory or a specified subdirectory. Returns a list of filenames.
 - delete_file(filename: str): Deletes the specified file from the workspace directory. Returns a success or error message.
 - execute_python(code: str): Executes the provided Python code snippet. Can be used for calculations, data manipulation, etc. Returns the output/result or error. Use standard libraries (os, json, requests, etc. are available). Print statements will be captured as output. !!! CAUTION: Security risk if code is not controlled !!!
-- memory_get(key: str): Retrieves a value from memory by key. The value persists across multiple queries in the same conversation. Returns the stored value or an error message if the key doesn't exist.
+- memory_get(key: str): Retrieves a value from memory by key (parameter name is `key`, **not** `memory_key`). The value persists across multiple queries in the same conversation. Returns the stored value or an error message if the key doesn't exist.
 - memory_set(key: str, value: str): Stores a value in memory with the given key. The value persists across multiple queries in the same conversation. Returns a success message.
 - memory_list(): Lists all keys currently stored in memory. Returns a comma-separated list of keys or a message indicating no keys are stored.
 """
@@ -832,6 +832,9 @@ Provide *only* the JSON object as your response.
                 tool_args = action['args'].copy()
                 if 'reasoning' in tool_args:
                     tool_args.pop('reasoning')
+                # Compatibility fix: remap 'memory_key' to 'key' if present for memory_get
+                if action['tool'] == "memory_get" and 'memory_key' in tool_args:
+                    tool_args['key'] = tool_args.pop('memory_key')
 
                 st.write(f"\n\nAttempting to execute: {action['tool']} with args {tool_args}")
 
@@ -1329,7 +1332,7 @@ Sources:
 
     # Process the final response to handle LaTeX and dollar amounts
     try:
-        from agent_workspace.format_results import process_final_output
+        from processing.format_results import process_final_output
         processed_response = process_final_output(final_response)
     except ImportError:
         # If the module is not available, use the original response
@@ -1428,7 +1431,7 @@ elif st.session_state.current_step_index == -2: # Halted due to failure
 
          # Process the failure message to handle LaTeX and dollar amounts
          try:
-             from agent_workspace.format_results import process_final_output
+             from processing.format_results import process_final_output
              processed_failure = process_final_output(failure_message)
          except ImportError:
              # If the module is not available, use the original message
@@ -1464,7 +1467,7 @@ elif st.session_state.current_step_index == -2: # Halted due to failure
 
          # Process the failure message to handle LaTeX and dollar amounts
          try:
-             from agent_workspace.format_results import process_final_output
+             from processing.format_results import process_final_output
              processed_failure = process_final_output(failure_message)
          except ImportError:
              # If the module is not available, use the original message

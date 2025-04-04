@@ -160,6 +160,12 @@ Suggested Tool: {tool_suggestion}
 Available Tools: {list(TOOLS.keys())}
 Context from previous steps: {json.dumps(context, indent=2)}
 
+IMPORTANT:
+
+- When embedding any markdown content, LaTeX, or other text inside JSON string values, you MUST escape all backslashes as double backslashes (`\\\\`).
+- Also ensure any special characters like quotes are properly escaped for JSON.
+- Failure to do so will produce invalid JSON, which will cause an error.
+
 1.  **Reason:** Analyze the step description and context. Decide which tool is *best* suited to accomplish this step. If a tool is needed, determine the *exact* arguments required, drawing information from the context if necessary. Pay close attention to the parameter names expected by each tool.
 
    **IMPORTANT FOR FILE OPERATIONS:**
