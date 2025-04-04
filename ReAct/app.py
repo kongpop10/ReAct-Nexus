@@ -5,20 +5,23 @@ import re
 from datetime import datetime
 
 def generate_title(messages, client=None):
-    """Generate a title based on the conversation messages using Gemini model."""
+    """Generate a title based on the conversation messages using the configured LLM model."""
     try:
         # Extract the user's query from messages
         user_messages = [msg["content"] for msg in messages if msg["role"] == "user"]
 
-        # If we have user messages and a client, use Gemini to generate a title
+        # If we have user messages and a client, use the configured model to generate a title
         if user_messages and client:
             # Combine up to the last 3 user messages for context
             context = "\n".join(user_messages[-3:])
 
-            # Use the Gemini model to generate a title
+            # Use the configured model to generate a title
             try:
+                # Get the title model from session state, with fallback to default
+                title_model = st.session_state.get('title_model', "google/gemini-2.0-flash-exp:free")
+
                 completion = client.chat.completions.create(
-                    model="google/gemini-2.0-flash-exp:free",
+                    model=title_model,
                     messages=[
                         {"role": "system", "content": "You are a helpful assistant that generates concise, descriptive titles for conversations. Create a short title (5-7 words max) that captures the essence of the conversation."},
                         {"role": "user", "content": f"Generate a short, descriptive title for this conversation:\n{context}"}
@@ -384,6 +387,53 @@ def save_conversation(filename, messages, title=None, created_at=None):
         pass
 
 
+def auto_save_conversation(messages, client, current_filename=None):
+    """Automatically save conversation, either updating existing file or creating a new one."""
+    if not messages or len(messages) == 0:
+        return None, None
+
+    # Determine if we should create a new file or update existing one
+    if current_filename is None:
+        # Create a new file with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"conversation_{timestamp}.json"
+        created_at = datetime.now().isoformat()
+
+        # Generate title using the configured model
+        generated_title = generate_title(messages, client)
+
+        # Save conversation with metadata
+        save_conversation(filename, messages, title=generated_title, created_at=created_at)
+
+        # Show a toast notification
+        st.toast(f"Saved new conversation: {generated_title}", icon="✅")
+
+        return filename, generated_title
+    else:
+        # Update existing file
+        conv_dir = os.path.join(WORKSPACE_DIR, 'agent_workspace')
+        path = os.path.join(conv_dir, current_filename)
+
+        # Read existing data to preserve title and created_at
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                title = data.get('title', None)
+                created_at = data.get('created_at', None)
+        except Exception:
+            # If file doesn't exist or is corrupted, create new metadata
+            title = None
+            created_at = None
+
+        # Save updated conversation
+        save_conversation(current_filename, messages, title=title, created_at=created_at)
+
+        # Show a toast notification
+        st.toast(f"Updated conversation", icon="✅")
+
+        return current_filename, title
+
+
 def execute_python(code: str) -> str:
     """
     Executes a Python code snippet.
@@ -448,6 +498,66 @@ def get_stock_data(symbol: str = None, ticker: str = None, stock_symbol: str = N
     except Exception as e:
         return json.dumps({'error': f'API request failed: {str(e)}'})
 
+# Define memory tool functions
+def memory_get(key: str) -> str:
+    """Retrieves a value from memory by key."""
+    st.write(f"TOOL: memory_get(key='{key}')")
+    value = st.session_state.context.get(key, None)
+    if value is None:
+        return f"No value found for key '{key}' in memory."
+    return str(value)
+
+def memory_set(key: str, value: str) -> str:
+    """Stores a value in memory with the given key."""
+    st.write(f"TOOL: memory_set(key='{key}', value='{value}')")
+    st.session_state.context[key] = value
+    return f"Successfully stored value for key '{key}' in memory."
+
+def memory_list() -> str:
+    """Lists all keys currently stored in memory."""
+    st.write(f"TOOL: memory_list()")
+    # Filter out step results to only show named memory items
+    memory_keys = [key for key in st.session_state.context.keys() if not key.startswith('step_')]
+    if not memory_keys:
+        return "No named memory items found."
+    return "Memory keys: " + ", ".join(memory_keys)
+
+# Functions for message-based memory management
+def update_message_memory(message_index, remember=True):
+    """Update whether a message should be remembered or not."""
+    if 0 <= message_index < len(st.session_state.messages):
+        message = st.session_state.messages[message_index]
+        st.session_state.message_memories[message_index] = {
+            "content": message["content"],
+            "role": message["role"],
+            "remember": remember
+        }
+        # Update the persistent memory with message content
+        update_memory_from_messages()
+        return True
+    return False
+
+def update_memory_from_messages():
+    """Extract information from messages and update the persistent memory."""
+    # Clear previous message-based memories
+    # First, identify keys that were from messages
+    message_memory_keys = [k for k in st.session_state.persistent_memory.keys()
+                          if k.startswith('message_')]
+    # Remove these keys
+    for key in message_memory_keys:
+        if key in st.session_state.persistent_memory:
+            del st.session_state.persistent_memory[key]
+
+    # Add memories from messages that should be remembered
+    for idx, memory_data in st.session_state.message_memories.items():
+        if memory_data["remember"] and memory_data["role"] == "assistant":
+            # Only remember assistant messages
+            memory_key = f"message_{idx}"
+            st.session_state.persistent_memory[memory_key] = memory_data["content"]
+
+    # Update context with the new memory state
+    st.session_state.context = st.session_state.persistent_memory.copy()
+
 TOOLS = {
     "web_search": web_search,
     "web_scrape": web_scrape,
@@ -457,8 +567,9 @@ TOOLS = {
     "list_files": list_files,
     "delete_file": delete_file,
     "execute_python": execute_python,
-    # "short_term_memory_get": lambda key: st.session_state.context.get(key, None), # Example how memory could be a tool
-    # "short_term_memory_set": lambda key, value: st.session_state.context.update({key: value}),
+    "memory_get": memory_get,
+    "memory_set": memory_set,
+    "memory_list": memory_list,
 }
 
 TOOL_DESCRIPTIONS = """
@@ -471,6 +582,9 @@ Available Tools:
 - list_files(directory: str = None): Lists all files in the workspace directory or a specified subdirectory. Returns a list of filenames.
 - delete_file(filename: str): Deletes the specified file from the workspace directory. Returns a success or error message.
 - execute_python(code: str): Executes the provided Python code snippet. Can be used for calculations, data manipulation, etc. Returns the output/result or error. Use standard libraries (os, json, requests, etc. are available). Print statements will be captured as output. !!! CAUTION: Security risk if code is not controlled !!!
+- memory_get(key: str): Retrieves a value from memory by key. The value persists across multiple queries in the same conversation. Returns the stored value or an error message if the key doesn't exist.
+- memory_set(key: str, value: str): Stores a value in memory with the given key. The value persists across multiple queries in the same conversation. Returns a success message.
+- memory_list(): Lists all keys currently stored in memory. Returns a comma-separated list of keys or a message indicating no keys are stored.
 """
 
 # --- LLM Interaction ---
@@ -486,6 +600,35 @@ def run_planner(client: OpenAI, user_query: str, planner_model: str) -> list:
         st.error("API key not configured. Cannot run Planner.")
         return []
 
+    # Get the current memory state to include in the prompt
+    memory_info = ""
+    if st.session_state.persistent_memory:
+        # Separate message memories from other memories for better organization
+        message_keys = [k for k in st.session_state.persistent_memory.keys() if k.startswith('message_')]
+        other_keys = [k for k in st.session_state.persistent_memory.keys() if not k.startswith('message_')]
+
+        memory_sections = []
+
+        # Add message memories if available
+        if message_keys:
+            message_section = "\n\nYou have access to the following information from previous messages:\n"
+            for key in message_keys:
+                # Extract the message index from the key
+                idx = key.split('_')[1]
+                message_section += f"- Previous response {idx}: Use memory_get(\"{key}\") to access\n"
+            memory_sections.append(message_section)
+
+        # Add other memories if available
+        if other_keys:
+            other_section = "\n\nYou have access to the following memory items from previous interactions:\n"
+            for key in other_keys:
+                other_section += f"- {key}: Use memory_get(\"{key}\") to access\n"
+            memory_sections.append(other_section)
+
+        # Combine all memory sections
+        if memory_sections:
+            memory_info = ''.join(memory_sections)
+
     system_prompt = f"""You are a meticulous planning agent. Your task is to break down the user's query into a sequence of actionable steps.
 Today's Date: {datetime.now().strftime('%Y-%m-%d')}
 You have access to the following tools:
@@ -497,6 +640,11 @@ You have access to the following tools:
 - When the user wants to DELETE or REMOVE a file, plan to use `delete_file` with the filename
 - Examples where `append=true` is needed: "add a line to file.txt", "append text to file.txt", "update file.txt with new content"
 - Examples where `delete_file` is needed: "delete file.txt", "remove file.txt", "erase file.txt"
+
+**IMPORTANT FOR MEMORY OPERATIONS:**
+- Use memory_get, memory_set, and memory_list tools to maintain information across multiple queries
+- When the user refers to information from previous interactions, plan to use memory_get to retrieve it
+- When you discover information that might be useful in future queries, plan to use memory_set to store it{memory_info}
 
 Based on the user query: "{user_query}"
 
@@ -733,18 +881,71 @@ if 'executor_model' not in st.session_state:
     st.session_state.executor_model = "google/gemini-2.0-flash-exp:free"
 if 'summarizer_model' not in st.session_state:
     st.session_state.summarizer_model = "google/gemini-2.0-flash-thinking-exp:free"
+if 'title_model' not in st.session_state:
+    st.session_state.title_model = "google/gemini-2.0-flash-exp:free"
 
-page = st.sidebar.radio("Sidebar Pages", ["Configuration", "Conversation Management"], index=0)
+page = st.sidebar.radio("Sidebar Pages", ["Configuration", "Conversation Management"], index=1)
 
 if page == "Configuration":
-    st.sidebar.title("Configuration")
-    st.session_state.api_key = st.sidebar.text_input("OpenRouter API Key", type="password", value=st.session_state.api_key)
-    st.session_state.base_url = st.sidebar.text_input("OpenRouter API Base", value=st.session_state.base_url)
-    st.session_state.planner_model = st.sidebar.text_input("Planner Model", value=st.session_state.planner_model)
-    st.session_state.executor_model = st.sidebar.text_input("Executor Model", value=st.session_state.executor_model)
-    st.session_state.summarizer_model = st.sidebar.text_input("Summarizer Model", value=st.session_state.summarizer_model)
+    with st.sidebar.expander("⚙️ Configuration", expanded=True):
+        st.sidebar.title("Configuration")
+        st.session_state.api_key = st.sidebar.text_input("OpenRouter API Key", type="password", value=st.session_state.api_key)
+        st.session_state.base_url = st.sidebar.text_input("OpenRouter API Base", value=st.session_state.base_url)
+        st.session_state.planner_model = st.sidebar.text_input("Planner Model", value=st.session_state.planner_model)
+        st.session_state.executor_model = st.sidebar.text_input("Executor Model", value=st.session_state.executor_model)
+        st.session_state.summarizer_model = st.sidebar.text_input("Summarizer Model", value=st.session_state.summarizer_model)
+        st.session_state.title_model = st.sidebar.text_input("Title Generation Model", value=st.session_state.title_model)
     st.sidebar.markdown("---")
 
+    # Memory Management UI
+    with st.sidebar.expander("🧠 Conversation Memory", expanded=False):
+        # Display current memory items
+        st.subheader("Current Memory Items")
+
+        # Separate message memories from other memories
+        message_memories = {k: v for k, v in st.session_state.persistent_memory.items() if k.startswith('message_')}
+        other_memories = {k: v for k, v in st.session_state.persistent_memory.items() if not k.startswith('message_')}
+
+        # Display message memories first
+        if message_memories:
+            st.markdown("### 💬 Message Memories")
+            for key, value in message_memories.items():
+                # Extract message index
+                try:
+                    msg_idx = int(key.split('_')[1])
+                    # Get the original message if available
+                    if 0 <= msg_idx < len(st.session_state.messages):
+                        original_msg = st.session_state.messages[msg_idx]
+                        st.markdown(f"**Message {msg_idx} ({original_msg['role']})**")
+                        st.markdown(str(value)[:500] + ('...' if len(str(value)) > 500 else ''))
+                    else:
+                        st.markdown(f"**{key}**")
+                        st.markdown(str(value)[:500] + ('...' if len(str(value)) > 500 else ''))
+                except:
+                    st.markdown(f"**{key}**")
+                    st.markdown(str(value)[:500] + ('...' if len(str(value)) > 500 else ''))
+
+        # Display other memories
+        if other_memories:
+            st.markdown("### 🔑 Custom Memories")
+            for key, value in other_memories.items():
+                st.markdown(f"**{key}**")
+                st.markdown(str(value)[:500] + ('...' if len(str(value)) > 500 else ''))
+
+        # Show message if no memories
+        if not message_memories and not other_memories:
+            st.info("No memory items stored yet.")
+
+        # Add a button to clear all memory
+        if message_memories or other_memories:
+            if st.button("Clear All Memory"):
+                st.session_state.persistent_memory = {}
+                st.session_state.context = {}
+                st.session_state.message_memories = {}
+                st.success("Memory cleared successfully!")
+                st.rerun()
+
+    st.sidebar.markdown("---")
     st.sidebar.subheader("Tools Available:")
     st.sidebar.markdown(f"`{', '.join(TOOLS.keys())}`")
     st.sidebar.markdown("---")
@@ -826,46 +1027,6 @@ if page == "Conversation Management":
     # Initialize OpenAI client
     client = get_openai_client(st.session_state.api_key, st.session_state.base_url)
 
-    saved_successfully = False
-    saved_filename = ""
-
-    with st.sidebar.expander("💾 Save Conversation", expanded=True):
-        save_clicked = st.button("💾 Save Conversation", type="primary", use_container_width=True)
-
-        if save_clicked and len(st.session_state.messages) > 0:
-            try:
-                # Generate title using Gemini model
-                generated_title = generate_title(st.session_state.messages, client)
-
-                # Create filename with timestamp
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"conversation_{timestamp}.json"
-                created_at = datetime.now().isoformat()
-
-                # Save conversation with metadata
-                save_conversation(filename, st.session_state.messages, title=generated_title, created_at=created_at)
-
-                saved_successfully = True
-                saved_filename = filename
-
-                st.success(f"Conversation saved as: {generated_title}")
-
-                # Provide download option
-                conv_dir = os.path.join(WORKSPACE_DIR, 'agent_workspace')
-                filepath = os.path.join(conv_dir, filename)
-                with open(filepath, "rb") as f:
-                    st.download_button(
-                        label="⬇️ Download JSON",
-                        data=f,
-                        file_name=filename,
-                        mime="application/json",
-                        use_container_width=True
-                    )
-            except Exception as e:
-                st.error(f"Failed to save conversation: {e}")
-        elif save_clicked and len(st.session_state.messages) == 0:
-            st.warning("No conversation to save. Start a chat first.")
-
     # Load conversation index metadata
     conv_index_path = os.path.join(WORKSPACE_DIR, "agent_workspace", "conversations_index.json")
     conversations = []
@@ -879,7 +1040,12 @@ if page == "Conversation Management":
 
     with st.sidebar.expander("📂 Conversations", expanded=True):
         st.button("➕ New Chat", key="new_chat_button",
-                 on_click=lambda: st.session_state.update({'messages': []}),
+                 on_click=lambda: st.session_state.update({
+                     'messages': [],
+                     'current_conversation_filename': None,
+                     'persistent_memory': {},
+                     'message_memories': {}
+                 }),
                  use_container_width=True)
 
         if not conversations:
@@ -922,6 +1088,9 @@ if page == "Conversation Management":
                                 st.error("Invalid conversation format.")
                                 continue
 
+                            # Set the current conversation filename
+                            st.session_state.current_conversation_filename = filename
+
                             st.success(f"Loaded: {title}")
                             st.rerun()
                         except Exception as e:
@@ -959,26 +1128,54 @@ if "current_step_index" not in st.session_state:
     st.session_state.current_step_index = -1
 if "context" not in st.session_state: # Short-term memory for the current task
     st.session_state.context = {}
+if "persistent_memory" not in st.session_state: # Cross-query persistent memory
+    st.session_state.persistent_memory = {}
+if "message_memories" not in st.session_state: # Track which messages are included in memory
+    st.session_state.message_memories = {} # Format: {message_index: {"content": "...", "remember": True}}
 if "execution_log" not in st.session_state:
     st.session_state.execution_log = [] # To show Reason/Act/Observe
+if "current_conversation_filename" not in st.session_state:
+    st.session_state.current_conversation_filename = None # Track current conversation file
 
 # Display chat messages with modern styling
-for message in st.session_state.messages:
+for idx, message in enumerate(st.session_state.messages):
     with st.chat_message(message["role"]):
         # Display message content directly without custom styling div
         st.markdown(message['content'])
 
-# Layout for Plan and Execution Log
-col1, col2 = st.columns([1, 2])
+        # Add memory toggle for assistant messages only
+        if message["role"] == "assistant":
+            # Check if this message is already in memory tracking
+            is_remembered = True  # Default to True (include in memory)
+            if idx in st.session_state.message_memories:
+                is_remembered = st.session_state.message_memories[idx]["remember"]
+            else:
+                # Initialize memory for this message
+                update_message_memory(idx, True)
 
-with col1:
-    st.subheader("📋 Current Plan")
-    st.markdown("<style>.stExpander {border: none !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}</style>", unsafe_allow_html=True)
-    plan_container = st.empty()
+            # Create columns for the toggle
+            cols = st.columns([6, 1])
+            with cols[1]:
+                # Create a toggle for memory inclusion
+                new_state = st.toggle(
+                    "🧠",
+                    value=is_remembered,
+                    key=f"memory_toggle_{idx}",
+                    help="Toggle to include/exclude this message from memory"
+                )
 
-with col2:
-    st.subheader("⚙️ Execution")
-    log_container = st.empty()
+                # Update memory if toggle state changed
+                if new_state != is_remembered:
+                    update_message_memory(idx, new_state)
+                    st.rerun()
+
+# Add styling for expanders
+st.markdown("<style>.stExpander {border: none !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}</style>", unsafe_allow_html=True)
+
+# Create containers for plan display (now hidden from UI but still used for functionality)
+# These containers will not be displayed in the final output response to the user
+plan_container = st.empty()
+log_container = st.empty()
 
 # --- Orchestrator Logic ---
 if st.session_state.plan is not None and 0 <= st.session_state.current_step_index < len(st.session_state.plan):
@@ -1005,13 +1202,18 @@ if st.session_state.plan is not None and 0 <= st.session_state.current_step_inde
                     client, current_step, st.session_state.context, st.session_state.executor_model
                 )
 
-                # Update Execution Log display
-                st.session_state.execution_log = [
+                # Update Execution Log display and store for the current step
+                step_log = [
                     f"**Step {current_step['step_id']}**: {current_step['description']}",
                     f"🧠 **Reason:** {reasoning}",
                     f"🎬 **Act:** {action_str}",
                     f"👀 **Observe:**\n```\n{observation}\n```"
                 ]
+                st.session_state.execution_log = step_log
+
+                # Store the reasoning and action in the step for later display
+                current_step["reasoning"] = reasoning
+                current_step["action_str"] = action_str
 
                 # Debug output to verify reasoning is being updated
                 st.write(f"Reasoning for step {current_step['step_id']}: {reasoning}")
@@ -1118,7 +1320,13 @@ Sources:
 
     # Generate the final response
     with st.spinner("Generating final response..."):
-        final_response = generate_final_response(client, st.session_state.messages[-2]["content"], st.session_state.plan)
+        # Find the last user message to use as the query
+        user_messages = [msg for msg in st.session_state.messages if msg["role"] == "user"]
+        if user_messages:
+            user_query = user_messages[-1]["content"]
+        else:
+            user_query = "Unknown query"
+        final_response = generate_final_response(client, user_query, st.session_state.plan)
 
     # Process the final response to handle LaTeX and dollar amounts
     try:
@@ -1132,14 +1340,40 @@ Sources:
     # Add the processed response to the chat
     st.session_state.messages.append({"role": "assistant", "content": processed_response})
 
+    # Add this new message to memory (automatically remembered by default)
+    new_message_idx = len(st.session_state.messages) - 1
+    update_message_memory(new_message_idx, True)
+
     # Display the processed response immediately
     with st.chat_message("assistant"):
         st.markdown(processed_response)
 
+        # Add memory toggle for the new message
+        cols = st.columns([6, 1])
+        with cols[1]:
+            # Create a toggle for memory inclusion
+            new_state = st.toggle(
+                "🧠",
+                value=True,
+                key=f"memory_toggle_{new_message_idx}",
+                help="Toggle to include/exclude this message from memory"
+            )
+
+    # Automatically save the conversation
+    filename, title = auto_save_conversation(st.session_state.messages, client, st.session_state.current_conversation_filename)
+    st.session_state.current_conversation_filename = filename
+
     # Reset for next query
     st.session_state.current_step_index = -1
     # Keep plan visible, but could clear: st.session_state.plan = None
-    # st.session_state.context = {} # Optionally clear context
+
+    # Transfer important information from context to persistent memory
+    if st.session_state.context:
+        # Copy any important results to persistent memory
+        for key, value in st.session_state.context.items():
+            if not key.startswith('step_'):
+                # Only preserve named memory items, not step results
+                st.session_state.persistent_memory[key] = value
 
     # Force a rerun to ensure the UI is updated
     st.rerun()
@@ -1204,9 +1438,28 @@ elif st.session_state.current_step_index == -2: # Halted due to failure
 
          st.session_state.messages.append({"role": "assistant", "content": processed_failure})
 
+         # Add this new message to memory (automatically remembered by default)
+         new_message_idx = len(st.session_state.messages) - 1
+         update_message_memory(new_message_idx, True)
+
          # Display the processed failure message immediately
          with st.chat_message("assistant"):
              st.markdown(processed_failure)
+
+             # Add memory toggle for the new message
+             cols = st.columns([6, 1])
+             with cols[1]:
+                 # Create a toggle for memory inclusion
+                 new_state = st.toggle(
+                     "🧠",
+                     value=True,
+                     key=f"memory_toggle_{new_message_idx}",
+                     help="Toggle to include/exclude this message from memory"
+                 )
+
+         # Automatically save the conversation
+         filename, title = auto_save_conversation(st.session_state.messages, client, st.session_state.current_conversation_filename)
+         st.session_state.current_conversation_filename = filename
      else:
          failure_message = "I encountered an issue while trying to answer your query. The execution plan failed, but I couldn't identify which specific step caused the problem."
 
@@ -1221,9 +1474,28 @@ elif st.session_state.current_step_index == -2: # Halted due to failure
 
          st.session_state.messages.append({"role": "assistant", "content": processed_failure})
 
+         # Add this new message to memory (automatically remembered by default)
+         new_message_idx = len(st.session_state.messages) - 1
+         update_message_memory(new_message_idx, True)
+
          # Display the processed failure message immediately
          with st.chat_message("assistant"):
              st.markdown(processed_failure)
+
+             # Add memory toggle for the new message
+             cols = st.columns([6, 1])
+             with cols[1]:
+                 # Create a toggle for memory inclusion
+                 new_state = st.toggle(
+                     "🧠",
+                     value=True,
+                     key=f"memory_toggle_{new_message_idx}",
+                     help="Toggle to include/exclude this message from memory"
+                 )
+
+         # Automatically save the conversation
+         filename, title = auto_save_conversation(st.session_state.messages, client, st.session_state.current_conversation_filename)
+         st.session_state.current_conversation_filename = filename
 
      # Keep state as is for debugging, reset index to prevent re-execution attempt
      st.session_state.current_step_index = -1
@@ -1247,10 +1519,24 @@ if st.session_state.plan is not None and st.session_state.plan:
         # Hide dependency details from the user interface
         plan_display.append(f"{status_icon} **Step {step['step_id']}:** {step['description']}<br>")
         if step["status"] in ["Completed", "Failed"] and step["result"]:
-             # Show result in collapsed section, but hide raw JSON
-             with st.expander(f"   Result (Step {step['step_id']})", expanded=False):
+             # Show result in collapsed section with the step description as the title
+             with st.expander(f"   {step['description']}", expanded=False):
+                  # Get the reasoning and action for this step
+                  # Default values in case we can't find the specific reasoning/action
+                  reasoning = step.get("reasoning", "No reasoning available")
+                  action_str = step.get("action_str", "No action details available")
+                  observation = str(step['result'])
+
+                  # Display the reason, act, observe sections
+                  st.markdown(f"🧠 **Reason:**")
+                  st.markdown(reasoning)
+
+                  st.markdown(f"🎬 **Act:**")
+                  st.markdown(action_str)
+
+                  st.markdown(f"👀 **Observe:**")
                   # Process the result to hide raw JSON
-                  result_str = str(step['result'])
+                  result_str = observation
                   # If result looks like JSON, try to format it more user-friendly
                   if (result_str.startswith('{') and result_str.endswith('}')) or \
                      (result_str.startswith('[') and result_str.endswith(']')):
@@ -1270,8 +1556,10 @@ if st.session_state.plan is not None and st.session_state.plan:
                       st.code(result_str, language=None)
 
 
-plan_container.markdown("\n".join(plan_display), unsafe_allow_html=True)
-log_container.markdown("\n\n".join(st.session_state.execution_log), unsafe_allow_html=True)
+# Only display plan and log containers during execution, not in the final output
+if st.session_state.current_step_index >= 0 and st.session_state.current_step_index < len(st.session_state.plan):
+    plan_container.markdown("\n".join(plan_display), unsafe_allow_html=True)
+    log_container.markdown("\n\n".join(st.session_state.execution_log), unsafe_allow_html=True)
 
 
 # --- Chat Input ---
@@ -1287,7 +1575,18 @@ if prompt := st.chat_input("Enter your query..."):
         # Clear previous execution state
         st.session_state.plan = None
         st.session_state.current_step_index = -1
-        st.session_state.context = {}
+
+        # Transfer important information from context to persistent memory before clearing
+        if st.session_state.context:
+            # Copy any important results to persistent memory
+            for key, value in st.session_state.context.items():
+                if not key.startswith('step_'):
+                    # Only preserve named memory items, not step results
+                    st.session_state.persistent_memory[key] = value
+
+        # Initialize context with persistent memory
+        st.session_state.context = st.session_state.persistent_memory.copy()
+
         st.session_state.execution_log = []
         plan_container.empty() # Clear display immediately
         log_container.empty()
@@ -1298,7 +1597,7 @@ if prompt := st.chat_input("Enter your query..."):
                 st.session_state.plan = run_planner(client, prompt, st.session_state.planner_model) or []
                 if st.session_state.plan:
                     st.success("Plan generated successfully!")
-                    st.session_state.messages.append({"role": "assistant", "content": f"I've created a plan with {len(st.session_state.plan)} steps to solve your request."})
+                    # Removed the message about plan steps
                     st.session_state.current_step_index = 0 # Start execution
                     st.rerun() # Trigger the execution loop
                 else:
