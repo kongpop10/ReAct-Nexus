@@ -70,6 +70,42 @@ import traceback
 from dotenv import load_dotenv
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+# --- Persistent Model Config Management ---
+import threading
+MODEL_CONFIG_FILE = "model_config.json"
+DEFAULT_MODELS = {
+    "planner_model": "google/gemini-2.0-flash-thinking-exp:free",
+    "executor_model": "google/gemini-2.0-flash-exp:free",
+    "summarizer_model": "google/gemini-2.0-flash-thinking-exp:free",
+    "title_model": "google/gemini-2.0-flash-exp:free"
+}
+
+config_lock = threading.Lock()
+
+def load_model_config():
+    try:
+        if not os.path.exists(MODEL_CONFIG_FILE):
+            return DEFAULT_MODELS.copy()
+        with open(MODEL_CONFIG_FILE, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        # Validate keys
+        for key in DEFAULT_MODELS:
+            if key not in data or not isinstance(data[key], str) or not data[key]:
+                data[key] = DEFAULT_MODELS[key]
+        return data
+    except Exception:
+        return DEFAULT_MODELS.copy()
+
+def save_model_config():
+    try:
+        to_save = {}
+        for key in DEFAULT_MODELS:
+            to_save[key] = st.session_state.get(key, DEFAULT_MODELS[key])
+        with config_lock:
+            with open(MODEL_CONFIG_FILE, 'w', encoding='utf-8') as f:
+                json.dump(to_save, f, indent=2)
+    except Exception as e:
+        st.warning(f"Failed to save model configuration: {e}")
 import time
 import random
 def extract_urls_from_markdown(markdown_text: str) -> list:
@@ -86,12 +122,33 @@ if not os.path.exists(WORKSPACE_DIR):
 
 # --- Tool Implementations ---
 
+# Initialize debug mode in session state if not present
+if 'debug_mode' not in st.session_state:
+    st.session_state.debug_mode = False
+
+# Create a function for controlled logging
+def log_debug(message):
+    """Log debug information only if debug mode is enabled"""
+    if st.session_state.debug_mode:
+        st.write(message)
+
+# Create a function for tool status updates
+def update_tool_status(tool_name, **kwargs):
+    """Update the status display with tool execution information"""
+    # Always update the status indicator
+    if 'status_container' in st.session_state and st.session_state.status_container is not None:
+        params = ', '.join([f"{k}='{v}'" if isinstance(v, str) else f"{k}={v}" for k, v in kwargs.items()])
+        st.session_state.status_container.info(f"🔧 Using tool: {tool_name}({params})")
+    # Log detailed information if debug mode is on
+    if st.session_state.debug_mode:
+        st.write(f"TOOL: {tool_name}({', '.join([f'{k}={v!r}' for k, v in kwargs.items()])})")
+
 def web_search(query: str) -> str:
     """
     Performs real web search using Tavily API and formats results in markdown.
     Requires TAVILY_API_KEY environment variable.
     """
-    st.write(f"TOOL: web_search(query='{query}')")
+    update_tool_status("web_search", query=query)
 
     api_key = os.getenv("TAVILY_API_KEY")
     if not api_key:
@@ -116,7 +173,7 @@ def web_scrape(url: str = None, urls: str = None) -> str:
     """Scrapes the text content of a given URL or list of URLs using WebScraper class."""
     # Handle both parameter names (url and urls) for backward compatibility
     target_url = url if url is not None else urls
-    st.write(f"TOOL: web_scrape(url='{target_url}')")
+    update_tool_status("web_scrape", url=target_url)
 
     if target_url is None:
         return "Error: No URL provided. Please provide a URL using the 'url' parameter."
@@ -157,7 +214,7 @@ def web_scrape(url: str = None, urls: str = None) -> str:
 
 def read_file(filename: str) -> str:
     """Reads content from a file in the workspace directory."""
-    st.write(f"TOOL: read_file(filename='{filename}')")
+    update_tool_status("read_file", filename=filename)
     filepath = os.path.join(WORKSPACE_DIR, filename)
     try:
         if not os.path.exists(filepath):
@@ -187,7 +244,7 @@ def write_file(filename: str, content: str = None, text: str = None, append: boo
     mode = 'a' if append else 'w'  # Use append mode if requested
     action = "appended" if append else "wrote"
 
-    st.write(f"TOOL: write_file(filename='{filename}', content='...', append={append})")
+    update_tool_status("write_file", filename=filename, append=append)
     filepath = os.path.join(WORKSPACE_DIR, filename)
     try:
         with open(filepath, mode, encoding='utf-8') as f:
@@ -203,14 +260,14 @@ def list_files(directory: str = None) -> str:
         directory: Optional subdirectory within the workspace to list files from
     """
     if directory:
-        st.write(f"TOOL: list_files(directory='{directory}')")
+        update_tool_status("list_files", directory=directory)
         # Handle both absolute paths and relative paths within the workspace
         if os.path.isabs(directory):
             target_dir = directory
         else:
             target_dir = os.path.join(WORKSPACE_DIR, directory)
     else:
-        st.write("TOOL: list_files()")
+        update_tool_status("list_files")
         target_dir = WORKSPACE_DIR
 
     try:
@@ -299,7 +356,7 @@ def delete_file(filename: str) -> str:
     Args:
         filename: The name of the file to delete
     """
-    st.write(f"TOOL: delete_file(filename='{filename}')")
+    update_tool_status("delete_file", filename=filename)
     filepath = os.path.join(WORKSPACE_DIR, filename)
     try:
         if not os.path.exists(filepath):
@@ -446,7 +503,7 @@ def execute_python(code: str) -> str:
     Requires a secure sandboxed environment for production.
     """
     st.warning("**Security Warning:** Executing Python code dynamically. Ensure code is safe! (Using `exec`)")
-    st.write(f"TOOL: execute_python(code=...)")
+    update_tool_status("execute_python")
     st.code(code, language='python')
 
     local_vars = {}
@@ -486,7 +543,7 @@ def get_stock_data(symbol: str = None, ticker: str = None, stock_symbol: str = N
     if actual_symbol is None:
         actual_symbol = stock_symbol
 
-    st.write(f"TOOL: get_stock_data(symbol='{actual_symbol}')")
+    update_tool_status("get_stock_data", symbol=actual_symbol)
 
     if actual_symbol is None:
         return json.dumps({'error': 'No stock symbol provided. Please provide a symbol using one of these parameters: "symbol", "ticker", or "stock_symbol"'})
@@ -506,7 +563,7 @@ def get_stock_data(symbol: str = None, ticker: str = None, stock_symbol: str = N
 # Define memory tool functions
 def memory_get(key: str) -> str:
     """Retrieves a value from memory by key."""
-    st.write(f"TOOL: memory_get(key='{key}')")
+    update_tool_status("memory_get", key=key)
     value = st.session_state.context.get(key, None)
     if value is None:
         return f"No value found for key '{key}' in memory."
@@ -514,13 +571,13 @@ def memory_get(key: str) -> str:
 
 def memory_set(key: str, value: str) -> str:
     """Stores a value in memory with the given key."""
-    st.write(f"TOOL: memory_set(key='{key}', value='{value}')")
+    update_tool_status("memory_set", key=key, value=value)
     st.session_state.context[key] = value
     return f"Successfully stored value for key '{key}' in memory."
 
 def memory_list() -> str:
     """Lists all keys currently stored in memory."""
-    st.write(f"TOOL: memory_list()")
+    update_tool_status("memory_list")
     # Filter out step results to only show named memory items
     memory_keys = [key for key in st.session_state.context.keys() if not key.startswith('step_')]
     if not memory_keys:
@@ -722,6 +779,19 @@ Context from previous steps: {json.dumps(context, indent=2)}
 
 1.  **Reason:** Analyze the step description and context. Decide which tool is *best* suited to accomplish this step. If a tool is needed, determine the *exact* arguments required, drawing information from the context if necessary. Pay close attention to the parameter names expected by each tool.
 
+   **REQUIRED PARAMETERS FOR TOOLS:**
+   - `web_search` requires a `query` parameter (string)
+   - `web_scrape` requires a `url` parameter (string)
+   - `get_stock_data` requires a `symbol` parameter (string)
+   - `read_file` requires a `filename` parameter (string)
+   - `write_file` requires `filename` (string) and `content` (string) parameters, with optional `append` (boolean)
+   - `list_files` has an optional `directory` parameter (string)
+   - `delete_file` requires a `filename` parameter (string)
+   - `execute_python` requires a `code` parameter (string)
+   - `memory_get` requires a `key` parameter (string) - NOT `memory_key`
+   - `memory_set` requires `key` (string) and `value` (string) parameters
+   - `memory_list` takes no parameters
+
    **IMPORTANT FOR FILE OPERATIONS:**
    - When the user wants to ADD, APPEND, or UPDATE content in an existing file, use `write_file` with `append=true`
    - When the user wants to CREATE a new file or REPLACE/OVERWRITE an existing file, use `write_file` with `append=false` (default)
@@ -748,7 +818,7 @@ Provide *only* the JSON object as your response.
     # We'll extract the reasoning from the LLM response later
 
     try:
-        st.write(f"Attempting LLM call for step: {step_desc}") # Debug output
+        log_debug(f"Attempting LLM call for step: {step_desc}") # Debug output
         completion = client.chat.completions.create(
             model=executor_model,
             messages=[
@@ -758,7 +828,7 @@ Provide *only* the JSON object as your response.
             temperature=0.0,
             response_format={"type": "json_object"}
         )
-        st.write(f"LLM call completed. Completion object: {completion}") # Debug output
+        log_debug(f"LLM call completed. Completion object: {completion}") # Debug output
 
         # --- ROBUSTNESS CHECKS ---
         if not completion:
@@ -794,7 +864,7 @@ Provide *only* the JSON object as your response.
             return reasoning, action_str, observation
 
         action_json_str = choice.message.content
-        st.write(f"Raw action JSON: {action_json_str}") # Debug output
+        log_debug(f"Raw action JSON: {action_json_str}") # Debug output
 
         # Extract reasoning from the LLM response
         # The LLM should be thinking about the reasoning in its internal process
@@ -804,6 +874,23 @@ Provide *only* the JSON object as your response.
         # Parse action JSON
         try:
             action = json.loads(action_json_str)
+
+            # Validate the action JSON structure
+            if not isinstance(action, dict):
+                reasoning = "Executor Error: Action must be a JSON object/dictionary"
+                st.error(reasoning)
+                return reasoning, "Error", "Invalid action format: not a JSON object"
+
+            # Check for required fields
+            if 'tool' not in action:
+                reasoning = "Executor Error: Missing 'tool' field in action JSON"
+                st.error(reasoning)
+                return reasoning, "Error", "Missing 'tool' field in action"
+
+            if 'args' not in action or not isinstance(action['args'], dict):
+                reasoning = "Executor Error: Missing or invalid 'args' field in action JSON"
+                st.error(reasoning)
+                return reasoning, "Error", "Missing or invalid 'args' field in action"
 
             # Update reasoning with the actual reasoning from the LLM
             # Extract reasoning from the 'reasoning' field in args if available
@@ -840,10 +927,14 @@ Provide *only* the JSON object as your response.
                 if 'reasoning' in tool_args:
                     tool_args.pop('reasoning')
                 # Compatibility fix: remap 'memory_key' to 'key' if present for memory_get
-                if action['tool'] == "memory_get" and 'memory_key' in tool_args:
-                    tool_args['key'] = tool_args.pop('memory_key')
+                if action['tool'] == "memory_get":
+                    if 'memory_key' in tool_args:
+                        tool_args['key'] = tool_args.pop('memory_key')
+                    # Ensure key parameter exists for memory_get
+                    if 'key' not in tool_args or not tool_args['key']:
+                        raise ValueError("memory_get requires a 'key' parameter")
 
-                st.write(f"\n\nAttempting to execute: {action['tool']} with args {tool_args}")
+                log_debug(f"\n\nAttempting to execute: {action['tool']} with args {tool_args}")
 
                 if action['tool'] not in TOOLS:
                     raise ValueError(f"Tool '{action['tool']}' not registered in TOOLS dictionary")
@@ -853,6 +944,14 @@ Provide *only* the JSON object as your response.
                 # Validate arguments are in keyword form
                 if not isinstance(tool_args, dict):
                     raise TypeError(f"Tool arguments must be dictionary, got {type(tool_args).__name__}")
+
+                # Check for required arguments based on tool type
+                if action['tool'] == "memory_get" and ('key' not in tool_args or not tool_args['key']):
+                    raise ValueError("memory_get requires a 'key' parameter")
+                elif action['tool'] == "memory_set" and ('key' not in tool_args or 'value' not in tool_args):
+                    raise ValueError("memory_set requires both 'key' and 'value' parameters")
+                elif action['tool'] == "web_search" and ('query' not in tool_args or not tool_args['query']):
+                    raise ValueError("web_search requires a 'query' parameter")
 
                 observation = tool_func(**tool_args)
                 st.success(f"Tool execution completed: {action['tool']}")
@@ -880,6 +979,23 @@ st.title("📄 Plan-ReAct Agent")
 st.markdown("---")
 
 # --- Configuration Sidebar ---
+# --- Initialize persistent model configs ---
+model_config = load_model_config()
+
+if 'planner_model' not in st.session_state:
+    st.session_state.planner_model = model_config.get('planner_model', DEFAULT_MODELS['planner_model'])
+if 'executor_model' not in st.session_state:
+    st.session_state.executor_model = model_config.get('executor_model', DEFAULT_MODELS['executor_model'])
+if 'summarizer_model' not in st.session_state:
+    st.session_state.summarizer_model = model_config.get('summarizer_model', DEFAULT_MODELS['summarizer_model'])
+if 'title_model' not in st.session_state:
+    st.session_state.title_model = model_config.get('title_model', DEFAULT_MODELS['title_model'])
+
+# Other session variables
+if 'api_key' not in st.session_state:
+    st.session_state.api_key = os.getenv("OPENROUTER_API_KEY", "")
+if 'base_url' not in st.session_state:
+    st.session_state.base_url = "https://openrouter.ai/api/v1"
 if 'api_key' not in st.session_state:
     st.session_state.api_key = os.getenv("OPENROUTER_API_KEY", "")
 if 'base_url' not in st.session_state:
@@ -896,14 +1012,21 @@ if 'title_model' not in st.session_state:
 page = st.sidebar.radio("Sidebar Pages", ["Configuration", "Conversation Management"], index=1)
 
 if page == "Configuration":
-    with st.sidebar.expander("⚙️ Configuration", expanded=True):
-        st.sidebar.title("Configuration")
-        st.session_state.api_key = st.sidebar.text_input("OpenRouter API Key", type="password", value=st.session_state.api_key)
-        st.session_state.base_url = st.sidebar.text_input("OpenRouter API Base", value=st.session_state.base_url)
-        st.session_state.planner_model = st.sidebar.text_input("Planner Model", value=st.session_state.planner_model)
-        st.session_state.executor_model = st.sidebar.text_input("Executor Model", value=st.session_state.executor_model)
-        st.session_state.summarizer_model = st.sidebar.text_input("Summarizer Model", value=st.session_state.summarizer_model)
-        st.session_state.title_model = st.sidebar.text_input("Title Generation Model", value=st.session_state.title_model)
+    # Main Configuration Section
+    st.sidebar.subheader("Configuration")
+
+    # API Configuration
+    st.session_state.api_key = st.sidebar.text_input("OpenRouter API Key", type="password", value=st.session_state.api_key)
+    st.session_state.base_url = st.sidebar.text_input("OpenRouter API Base", value=st.session_state.base_url)
+
+    # LLM Models Configuration in a collapsible section
+    with st.sidebar.expander("🤖 LLM Models", expanded=False):
+        st.session_state.planner_model = st.text_input("Planner Model", value=st.session_state.planner_model)
+        st.session_state.executor_model = st.text_input("Executor Model", value=st.session_state.executor_model)
+        st.session_state.summarizer_model = st.text_input("Summarizer Model", value=st.session_state.summarizer_model)
+        st.session_state.title_model = st.text_input("Title Generation Model", value=st.session_state.title_model)
+    # Persist updated model selections
+    save_model_config()
     st.sidebar.markdown("---")
 
     # Memory Management UI
@@ -1181,10 +1304,22 @@ for idx, message in enumerate(st.session_state.messages):
 # Add styling for expanders
 st.markdown("<style>.stExpander {border: none !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1);}</style>", unsafe_allow_html=True)
 
-# Create containers for plan display (now hidden from UI but still used for functionality)
+# Create containers for plan display and status updates
 # These containers will not be displayed in the final output response to the user
 plan_container = st.empty()
 log_container = st.empty()
+
+# Create a container for status updates
+st.session_state.status_container = st.empty()
+
+# Add debug mode toggle in sidebar
+if page == "Configuration":
+    with st.sidebar.expander("🐞 Debug Options", expanded=False):
+        st.session_state.debug_mode = st.toggle("Enable Debug Mode", value=st.session_state.debug_mode)
+        if st.session_state.debug_mode:
+            st.info("Debug mode is enabled. Verbose output will be shown during execution.")
+        else:
+            st.info("Debug mode is disabled. Only essential status updates will be shown.")
 
 # --- Orchestrator Logic ---
 if st.session_state.plan is not None and 0 <= st.session_state.current_step_index < len(st.session_state.plan):
@@ -1205,8 +1340,9 @@ if st.session_state.plan is not None and 0 <= st.session_state.current_step_inde
                     break # Stop execution for this cycle
 
         if dependencies_met:
-            st.status(f"Executing Step {current_step['step_id']}: {current_step['description']}...")
-            with st.spinner(f"Running Step {current_step['step_id']}..."):
+            # Update the status container with the current step information
+            st.session_state.status_container.info(f"⏳ Step {current_step['step_id']}/{len(st.session_state.plan)}: {current_step['description']}")
+            with st.spinner(f"Running Step {current_step['step_id']}/{len(st.session_state.plan)}..."):
                 reasoning, action_str, observation = run_executor_step(
                     client, current_step, st.session_state.context, st.session_state.executor_model
                 )
@@ -1225,7 +1361,7 @@ if st.session_state.plan is not None and 0 <= st.session_state.current_step_inde
                 current_step["action_str"] = action_str
 
                 # Debug output to verify reasoning is being updated
-                st.write(f"Reasoning for step {current_step['step_id']}: {reasoning}")
+                log_debug(f"Reasoning for step {current_step['step_id']}: {reasoning}")
 
                 # Update Plan State
                 current_step["result"] = observation
@@ -1247,7 +1383,8 @@ if st.session_state.plan is not None and 0 <= st.session_state.current_step_inde
 
 # --- Final Response Handling ---
 elif st.session_state.plan is not None and st.session_state.current_step_index == len(st.session_state.plan) and len(st.session_state.plan) > 0:
-    st.success("✅ Plan Execution Completed!")
+    # Update status to show completion
+    st.session_state.status_container.success("✅ Plan Execution Completed!")
 
     # Generate final response to the user
     def generate_final_response(client, user_query, plan):
@@ -1341,6 +1478,9 @@ Sources:
             user_query = "Unknown query"
         final_response = generate_final_response(client, user_query, st.session_state.plan)
 
+        # Clear the status container after generating the response
+        st.session_state.status_container.empty()
+
     # Process the final response to handle LaTeX and dollar amounts
     try:
         from processing.format_results import process_final_output
@@ -1391,10 +1531,16 @@ Sources:
     # Force a rerun to ensure the UI is updated
     st.rerun()
 elif st.session_state.current_step_index == -2: # Halted due to failure
-     st.error("❌ Plan Execution Halted due to step failure.")
+     # Update status to show failure
+     st.session_state.status_container.error("❌ Plan Execution Halted due to step failure.")
 
      # Generate a failure response
      failed_step = next((step for step in st.session_state.plan if step["status"] == "Failed"), None)
+
+     # Clear the status container after a short delay
+     time.sleep(2)  # Keep the error message visible for 2 seconds
+     st.session_state.status_container.empty()
+
      if failed_step:
          failure_message = f"I encountered an issue while trying to answer your query. The step '{failed_step['description']}' failed with the following error: {failed_step['result']}"
 
@@ -1571,8 +1717,19 @@ if st.session_state.plan is not None and st.session_state.plan:
 
 # Only display plan and log containers during execution, not in the final output
 if st.session_state.current_step_index >= 0 and st.session_state.current_step_index < len(st.session_state.plan):
-    plan_container.markdown("\n".join(plan_display), unsafe_allow_html=True)
-    log_container.markdown("\n\n".join(st.session_state.execution_log), unsafe_allow_html=True)
+    # Show plan overview with progress
+    total_steps = len(st.session_state.plan)
+    current_step_num = st.session_state.current_step_index + 1
+    progress_percentage = current_step_num / total_steps
+
+    # Create a clean progress display with progress bar
+    with plan_container.container():
+        st.progress(progress_percentage)
+        st.caption(f"Processing: {int(progress_percentage * 100)}% complete ({current_step_num}/{total_steps} steps)")
+
+    # Only show detailed execution log if debug mode is enabled
+    if st.session_state.debug_mode:
+        log_container.markdown("\n\n".join(st.session_state.execution_log), unsafe_allow_html=True)
 
 
 # --- Chat Input ---
@@ -1607,11 +1764,16 @@ if prompt := st.chat_input("Enter your query..."):
         # Generate Plan
         with st.spinner("🤖 Planning..."):
              with st.chat_message("assistant"):
+                # Clear any previous status
+                st.session_state.status_container.empty()
+                # Show planning status
+                st.session_state.status_container.info("🧠 Creating execution plan...")
                 st.session_state.plan = run_planner(client, prompt, st.session_state.planner_model) or []
                 if st.session_state.plan:
-                    st.success("Plan generated successfully!")
-                    # Removed the message about plan steps
-                    st.session_state.current_step_index = 0 # Start execution
+                    # Update status with plan information
+                    st.session_state.status_container.success(f"✅ Plan created with {len(st.session_state.plan)} steps")
+                    # Start execution
+                    st.session_state.current_step_index = 0
                     st.rerun() # Trigger the execution loop
                 else:
                     st.error("Failed to generate a plan. Please check the console for errors.")

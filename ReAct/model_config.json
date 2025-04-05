@@ -1,0 +1,6 @@
+{
+  "planner_model": "openrouter/quasar-alpha",
+  "executor_model": "openrouter/quasar-alpha",
+  "summarizer_model": "google/gemini-2.0-flash-thinking-exp:free",
+  "title_model": "google/gemini-2.0-flash-exp:free"
+}
