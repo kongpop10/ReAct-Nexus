@@ -114,6 +114,48 @@ def extract_urls_from_markdown(markdown_text: str) -> list:
     urls = re.findall(url_pattern, markdown_text)
     return urls
 
+def detect_url_scrape_request(query: str) -> tuple:
+    """Detect if a user is asking to scrape a URL for knowledge.
+
+    Args:
+        query (str): The user's query
+
+    Returns:
+        tuple: (is_scrape_request, url, memory_key)
+            - is_scrape_request (bool): True if the query is asking to scrape a URL
+            - url (str): The URL to scrape, or None if no URL found
+            - memory_key (str): Suggested memory key for storing the scraped content
+    """
+    # Common phrases that indicate a URL scrape request
+    scrape_phrases = [
+        "scrape", "extract", "get content", "get information",
+        "use as knowledge", "use as reference", "use this url",
+        "use this website", "use this link", "use this page",
+        "read this website", "read this url", "read this link", "read this page"
+    ]
+
+    # Check if any scrape phrase is in the query (case insensitive)
+    is_scrape_request = any(phrase.lower() in query.lower() for phrase in scrape_phrases)
+
+    # Extract URL from the query
+    urls = extract_urls_from_markdown(query)
+    url = urls[0] if urls else None
+
+    # Generate a memory key based on the URL domain
+    memory_key = None
+    if url:
+        try:
+            from urllib.parse import urlparse
+            domain = urlparse(url).netloc
+            # Remove www. and .com/.org/etc. to create a clean key
+            domain = domain.replace('www.', '')
+            domain = domain.split('.')[0]  # Get the main domain name
+            memory_key = f"scraped_{domain}"
+        except:
+            memory_key = "scraped_content"
+
+    return (is_scrape_request, url, memory_key)
+
 # --- Configuration & Constants ---
 load_dotenv() # Load .env file if it exists
 WORKSPACE_DIR = "agent_workspace"
@@ -637,7 +679,7 @@ TOOLS = {
 TOOL_DESCRIPTIONS = """
 Available Tools:
 - web_search(query: str): Searches the web for the given query. Returns a list of search results (title, url, snippet).
-- web_scrape(url: str): Fetches and extracts the main text content from a given URL or list of URLs. Returns the text content or a JSON object with URLs as keys and content as values.
+- web_scrape(url: str): Fetches and extracts the main text content from a given URL or list of URLs. Returns the text content or a JSON object with URLs as keys and content as values. You can also directly ask to scrape a URL and use it as knowledge in the conversation (e.g., "Please scrape https://example.com and use it as knowledge").
 - get_stock_data(symbol: str) or get_stock_data(ticker: str) or get_stock_data(stock_symbol: str): Fetches real-time stock data for the given stock symbol using Alpha Vantage API. Returns stock information in JSON format.
 - read_file(filename: str): Reads the content of the specified file from the workspace. Returns the file content.
 - write_file(filename: str, content: str, append: bool = False) or write_file(filename: str, text: str, append: bool = False): Writes or appends the given content to the specified file in the workspace. Accepts either 'content' or 'text' parameter. If append=True, adds to the existing file; if append=False (default), overwrites the file. Returns a success or error message.
@@ -656,11 +698,161 @@ def get_openai_client(api_key, base_url="https://openrouter.ai/api/v1"):
         return None
     return OpenAI(api_key=api_key, base_url=base_url)
 
+def validate_and_assess_plan(plan_list, query_complexity):
+    """Validates plan structure and assesses overall complexity.
+
+    Args:
+        plan_list (list): The plan steps list to validate
+        query_complexity (str): The complexity level of the original query
+
+    Returns:
+        list: The validated and potentially enhanced plan
+    """
+    if not plan_list or len(plan_list) == 0:
+        st.error("Empty plan generated. Please try again.")
+        return []
+
+    # Check for required keys in each step
+    for i, step in enumerate(plan_list):
+        if not all(k in step for k in ["step_id", "description", "tool_suggestion", "dependencies", "status", "result"]):
+            st.warning(f"Step {i+1} is missing required keys. Fixing...")
+            # Add missing keys with default values
+            if "step_id" not in step:
+                step["step_id"] = i + 1
+            if "description" not in step:
+                step["description"] = f"Step {i+1}"
+            if "tool_suggestion" not in step:
+                step["tool_suggestion"] = "None"
+            if "dependencies" not in step:
+                step["dependencies"] = []
+            if "status" not in step:
+                step["status"] = "Pending"
+            if "result" not in step:
+                step["result"] = None
+
+        # Ensure step_ids are sequential
+        step["step_id"] = i + 1
+        step["status"] = "Pending"
+        step["result"] = None
+
+    # Assess plan complexity
+    plan_complexity = "Low"
+    if len(plan_list) > 7:
+        plan_complexity = "Medium"
+    if len(plan_list) > 12:
+        plan_complexity = "High"
+
+    # Check for non-linear dependencies (increases complexity)
+    for step in plan_list:
+        if len(step.get("dependencies", [])) > 1:
+            # Upgrade complexity level if multiple dependencies exist
+            if plan_complexity == "Low":
+                plan_complexity = "Medium"
+            elif plan_complexity == "Medium":
+                plan_complexity = "High"
+
+    # Check for circular dependencies
+    dependency_graph = {step["step_id"]: step["dependencies"] for step in plan_list}
+    if has_circular_dependencies(dependency_graph):
+        st.warning("Plan contains circular dependencies. Fixing...")
+        # Fix circular dependencies by removing problematic ones
+        for step in plan_list:
+            # Simple fix: ensure dependencies only point to earlier steps
+            step["dependencies"] = [dep for dep in step["dependencies"] if dep < step["step_id"]]
+
+    # Log plan assessment
+    log_debug(f"Plan complexity assessment: {plan_complexity} (Query complexity: {query_complexity})")
+    if plan_complexity == "High":
+        st.session_state.status_container.info(f"🧠 Complex plan with {len(plan_list)} steps. Execution may take longer.")
+
+    return plan_list
+
+def has_circular_dependencies(dependency_graph):
+    """Check if the dependency graph has circular dependencies.
+
+    Args:
+        dependency_graph (dict): Dictionary mapping step_id to list of dependencies
+
+    Returns:
+        bool: True if circular dependencies exist, False otherwise
+    """
+    visited = set()
+    path = set()
+
+    def dfs(node):
+        visited.add(node)
+        path.add(node)
+
+        for neighbor in dependency_graph.get(node, []):
+            if neighbor not in visited:
+                if dfs(neighbor):
+                    return True
+            elif neighbor in path:
+                return True
+
+        path.remove(node)
+        return False
+
+    for node in dependency_graph:
+        if node not in visited:
+            if dfs(node):
+                return True
+
+    return False
+
+def assess_query_complexity(query: str) -> str:
+    """Assess the complexity of a user query based on various factors.
+
+    Returns:
+        str: Complexity level - "Low", "Medium", or "High"
+    """
+    # Simple heuristic-based assessment
+    complexity_indicators = [
+        "compare", "analyze", "multiple", "several", "complex",
+        "relationship", "between", "and then", "afterwards",
+        "first", "second", "third", "finally", "if", "else", "otherwise",
+        "depending", "based on", "versus", "vs", "different", "similar",
+        "pros and cons", "advantages", "disadvantages", "benefits", "drawbacks"
+    ]
+
+    # Count sentences
+    sentences = [s for s in query.split('.') if s.strip()]
+
+    # Count complexity indicators
+    indicator_count = sum(1 for indicator in complexity_indicators if indicator.lower() in query.lower())
+
+    # Count question marks (multiple questions indicate complexity)
+    question_count = query.count('?')
+
+    # Assess complexity
+    if (len(sentences) > 3 or
+        indicator_count > 2 or
+        len(query.split()) > 50 or
+        question_count > 1):
+        return "High"
+    elif (len(sentences) > 1 or
+          indicator_count > 0 or
+          len(query.split()) > 20 or
+          question_count > 0):
+        return "Medium"
+    else:
+        return "Low"
+
 def run_planner(client: OpenAI, user_query: str, planner_model: str) -> list:
     """Generates the initial plan using the Planner LLM. Always returns a list."""
     if not client:
         st.error("API key not configured. Cannot run Planner.")
         return []
+
+    # Assess query complexity
+    complexity = assess_query_complexity(user_query)
+    log_debug(f"Query complexity assessment: {complexity}")
+
+    # Adjust temperature based on complexity
+    temperature = 0.2  # Default
+    if complexity == "High":
+        temperature = 0.1  # Lower temperature for more deterministic output on complex queries
+        st.session_state.status_container.info("🧠 Complex query detected. Using enhanced planning...")
 
     # Get the current memory state to include in the prompt
     memory_info = ""
@@ -705,10 +897,26 @@ You have access to the following tools:
 
 - Examples where `delete_file` is needed: "delete file.txt", "remove file.txt", "erase file.txt"
 
+**IMPORTANT FOR WEB SCRAPING AND KNOWLEDGE:**
+- When the user wants to scrape a URL and use it as knowledge, plan to use `web_scrape` to get the content and then `memory_set` to store it
+- After scraping a URL, store the content in memory with a descriptive key like "scraped_[domain]" for future reference
+- When answering questions about previously scraped content, plan to use `memory_get` to retrieve the stored content
+
 **IMPORTANT FOR MEMORY OPERATIONS:**
 - Use memory_get, memory_set, and memory_list tools to maintain information across multiple queries
 - When the user refers to information from previous interactions, plan to use memory_get to retrieve it
 - When you discover information that might be useful in future queries, plan to use memory_set to store it{memory_info}
+
+**GUIDELINES FOR COMPLEX QUERIES:**
+- For multi-part queries, break down each part into separate steps with clear dependencies
+- For data-intensive tasks, include steps for data validation and error handling
+- For tasks requiring multiple sources, plan to gather all information before synthesis
+- For tasks with potential failure points, include fallback steps or verification steps
+- For tasks requiring comparisons or analysis, break down into data gathering, analysis, and synthesis steps
+- For tasks involving multiple tools in sequence, ensure proper data flow between steps
+- For tasks with conditional logic, create separate steps for each condition and use dependencies appropriately
+- For tasks requiring iterative processing, create steps that can handle batches or chunks of data
+- For tasks with ambiguity, include steps to clarify requirements or validate assumptions
 
 Based on the user query: "{user_query}"
 
@@ -730,7 +938,7 @@ Output *only* the JSON list, nothing else before or after.
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_query}
             ],
-            temperature=0.2,
+            temperature=temperature,  # Use complexity-based temperature
             response_format={"type": "json_object"} # Request JSON output if model supports it
         )
         response_content = completion.choices[0].message.content
@@ -746,13 +954,8 @@ Output *only* the JSON list, nothing else before or after.
         else:
              raise ValueError("Planner did not return a JSON list.")
 
-        # Validate plan structure
-        for i, step in enumerate(plan_list):
-            if not all(k in step for k in ["step_id", "description", "tool_suggestion", "dependencies", "status", "result"]):
-                raise ValueError(f"Step {i+1} is missing required keys.")
-            step["step_id"] = i + 1 # Ensure step_ids are sequential 1, 2, 3...
-            step["status"] = "Pending" # Ensure initial status
-            step["result"] = None     # Ensure initial result
+        # Validate and assess plan structure
+        plan_list = validate_and_assess_plan(plan_list, complexity)
         return plan_list
     except json.JSONDecodeError as e:
         st.error(f"Planner Error: Failed to decode JSON response: {e}\nResponse received:\n{response_content}")
@@ -798,6 +1001,11 @@ Context from previous steps: {json.dumps(context, indent=2)}
    - When the user wants to DELETE or REMOVE a file, use `delete_file` with the filename
    - Examples where `append=true` is needed: "add a line to file.txt", "append text to file.txt", "update file.txt with new content"
    - Examples where `delete_file` is needed: "delete file.txt", "remove file.txt", "erase file.txt"
+
+   **IMPORTANT FOR WEB SCRAPING AND KNOWLEDGE:**
+   - When scraping a URL for knowledge, use `web_scrape` to get the content and then `memory_set` to store it
+   - After scraping a URL, store the content in memory with a descriptive key like "scraped_[domain]" for future reference
+   - When answering questions about previously scraped content, use `memory_get` to retrieve the stored content
 
    If no tool is needed (e.g., summarizing context), decide on the action.
 2.  **Action Format:** Respond with a JSON object containing the chosen tool and its arguments. The format *must* be:
@@ -1725,7 +1933,26 @@ if st.session_state.current_step_index >= 0 and st.session_state.current_step_in
     # Create a clean progress display with progress bar
     with plan_container.container():
         st.progress(progress_percentage)
-        st.caption(f"Processing: {int(progress_percentage * 100)}% complete ({current_step_num}/{total_steps} steps)")
+
+        # Determine plan complexity for display
+        complexity_level = "Simple"
+        complexity_color = "green"
+        if total_steps > 7:
+            complexity_level = "Moderate"
+            complexity_color = "orange"
+        if total_steps > 12:
+            complexity_level = "Complex"
+            complexity_color = "red"
+
+        # Show progress with complexity indicator
+        st.caption(f"Processing: {int(progress_percentage * 100)}% complete ({current_step_num}/{total_steps} steps) - :{complexity_color}[{complexity_level} Plan]")
+
+        # Add a detailed plan view in an expander
+        with st.expander("View detailed plan", expanded=False):
+            for i, step in enumerate(st.session_state.plan):
+                status_icon = "⏳" if i == st.session_state.current_step_index else "✅" if i < st.session_state.current_step_index else "⏸️"
+                deps = ", ".join([str(d) for d in step["dependencies"]]) if step["dependencies"] else "None"
+                st.markdown(f"{status_icon} **Step {step['step_id']}**: {step['description']}\n   Tool: `{step['tool_suggestion']}` | Dependencies: `{deps}`")
 
     # Only show detailed execution log if debug mode is enabled
     if st.session_state.debug_mode:
@@ -1761,20 +1988,63 @@ if prompt := st.chat_input("Enter your query..."):
         plan_container.empty() # Clear display immediately
         log_container.empty()
 
-        # Generate Plan
-        with st.spinner("🤖 Planning..."):
-             with st.chat_message("assistant"):
-                # Clear any previous status
-                st.session_state.status_container.empty()
-                # Show planning status
-                st.session_state.status_container.info("🧠 Creating execution plan...")
-                st.session_state.plan = run_planner(client, prompt, st.session_state.planner_model) or []
-                if st.session_state.plan:
-                    # Update status with plan information
-                    st.session_state.status_container.success(f"✅ Plan created with {len(st.session_state.plan)} steps")
-                    # Start execution
-                    st.session_state.current_step_index = 0
-                    st.rerun() # Trigger the execution loop
-                else:
-                    st.error("Failed to generate a plan. Please check the console for errors.")
-                    st.session_state.messages.append({"role": "assistant", "content": "Apologies, I encountered an issue while creating the execution plan. Please try again or check your API keys."})
+        # Check if this is a URL scraping request
+        is_scrape_request, url, memory_key = detect_url_scrape_request(prompt)
+
+        if is_scrape_request and url:
+            # This is a direct URL scraping request, handle it without planning
+            with st.spinner("🌐 Scraping website content..."):
+                with st.chat_message("assistant"):
+                    # Clear any previous status
+                    st.session_state.status_container.empty()
+                    # Show scraping status
+                    st.session_state.status_container.info(f"🌐 Scraping content from {url}...")
+
+                    # Use the web_scrape tool directly
+                    from data_acquisition.news_scraper import WebScraper
+                    try:
+                        scraper = WebScraper()
+                        content = scraper.scrape_content(url)
+
+                        # Store the scraped content in memory
+                        st.session_state.context[memory_key] = content
+                        st.session_state.persistent_memory[memory_key] = content
+
+                        # Create a response message
+                        response = f"I've scraped the content from {url} and stored it in memory. I'll use this information to answer your future questions in this conversation.\n\nThe content includes information about: {content[:200]}...\n\nReference: {url}"
+
+                        # Add to chat history
+                        st.session_state.messages.append({"role": "assistant", "content": response})
+                        st.markdown(response)
+
+                        # Update status
+                        st.session_state.status_container.success(f"✅ Successfully scraped content from {url}")
+                    except Exception as e:
+                        error_msg = f"I encountered an error while trying to scrape {url}: {str(e)}"
+                        st.session_state.messages.append({"role": "assistant", "content": error_msg})
+                        st.error(error_msg)
+        else:
+            # Regular query - generate plan and execute
+            with st.spinner("🤖 Planning..."):
+                 with st.chat_message("assistant"):
+                    # Clear any previous status
+                    st.session_state.status_container.empty()
+                    # Show planning status
+                    st.session_state.status_container.info("🧠 Creating execution plan...")
+                    # Assess query complexity first
+                    query_complexity = assess_query_complexity(prompt)
+                    if query_complexity == "High":
+                        st.session_state.status_container.info("🧠 Complex query detected. Creating detailed plan...")
+
+                    st.session_state.plan = run_planner(client, prompt, st.session_state.planner_model) or []
+                    if st.session_state.plan:
+                        # Update status with plan information and complexity
+                        steps_count = len(st.session_state.plan)
+                        complexity_emoji = "🟢" if steps_count < 8 else "🟡" if steps_count < 13 else "🔴"
+                        st.session_state.status_container.success(f"✅ Plan created with {steps_count} steps {complexity_emoji}")
+                        # Start execution
+                        st.session_state.current_step_index = 0
+                        st.rerun() # Trigger the execution loop
+                    else:
+                        st.error("Failed to generate a plan. Please check the console for errors.")
+                        st.session_state.messages.append({"role": "assistant", "content": "Apologies, I encountered an issue while creating the execution plan. Please try again or check your API keys."})
