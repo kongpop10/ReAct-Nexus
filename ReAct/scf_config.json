@@ -1,0 +1,57 @@
+{
+  "components": [
+    {
+      "name": "researcher",
+      "description": "Specialized in gathering and synthesizing information from multiple sources",
+      "capabilities": ["web_search", "web_scrape", "firecrawl_scrape", "firecrawl_crawl", "firecrawl_map", "kb_search", "kb_add_web", "kb_add_file", "text_extract_urls"],
+      "system_prompt": "You are a research specialist focused on gathering comprehensive information. Your goal is to collect relevant data from multiple sources, evaluate their credibility, and synthesize the information into a coherent understanding. Focus on depth and breadth of information gathering. You have access to advanced web scraping and crawling capabilities through Firecrawl tools."
+    },
+    {
+      "name": "analyst",
+      "description": "Specialized in analyzing data, identifying patterns, and drawing insights",
+      "capabilities": ["execute_python", "memory_get", "memory_set", "kb_search", "web_search", "text_extract_urls"],
+      "system_prompt": "You are an analytical specialist focused on processing and interpreting data. Your goal is to identify patterns, draw connections between different pieces of information, and generate insights. Focus on logical reasoning and critical thinking."
+    },
+    {
+      "name": "planner",
+      "description": "Specialized in breaking down complex problems into manageable steps",
+      "capabilities": ["memory_get", "memory_set", "memory_list", "web_search", "web_scrape", "text_extract_urls"],
+      "system_prompt": "You are a planning specialist focused on breaking down complex problems into manageable steps. Your goal is to create detailed, logical plans that address all aspects of a problem. Focus on thoroughness, logical sequencing, and anticipating potential issues."
+    },
+    {
+      "name": "executor",
+      "description": "Specialized in carrying out specific tasks and handling tool interactions",
+      "capabilities": ["all"],
+      "system_prompt": "You are an execution specialist focused on carrying out specific tasks. Your goal is to use the available tools effectively to accomplish your assigned objectives. Focus on precision, attention to detail, and adapting to unexpected outcomes."
+    },
+    {
+      "name": "synthesizer",
+      "description": "Specialized in combining information from multiple sources into coherent outputs",
+      "capabilities": ["memory_get", "memory_list", "kb_search", "web_search", "text_extract_urls"],
+      "system_prompt": "You are a synthesis specialist focused on combining information from multiple sources into coherent outputs. Your goal is to integrate diverse pieces of information, resolve contradictions, and present a unified understanding. Focus on clarity, coherence, and comprehensive coverage."
+    }
+  ],
+  "routing_rules": [
+    {
+      "pattern": "research|find information|search for|look up|gather data|scrape|crawl|map website|extract data|extract urls|find urls|get urls",
+      "component": "researcher"
+    },
+    {
+      "pattern": "analyze|compare|evaluate|assess|calculate|compute",
+      "component": "analyst"
+    },
+    {
+      "pattern": "plan|organize|structure|outline|strategize",
+      "component": "planner"
+    },
+    {
+      "pattern": "execute|perform|run|implement|do",
+      "component": "executor"
+    },
+    {
+      "pattern": "summarize|combine|integrate|synthesize|conclude",
+      "component": "synthesizer"
+    }
+  ],
+  "default_component": "planner"
+}
