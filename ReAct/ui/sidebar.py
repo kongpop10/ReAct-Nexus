@@ -457,7 +457,7 @@ def render_conversation_sidebar(client):
                     st.rerun()
 
                 # Compact delete button
-                if cols[1].button("🚮", key=f"delete_{filename}", help="Delete conversation", use_container_width=True):
+                if cols[1].button("🗑️", key=f"delete_{filename}", help="Delete conversation", use_container_width=True):
                     conv_path = os.path.join(WORKSPACE_DIR, "agent_workspace", filename)
                     try:
                         if os.path.exists(conv_path):

@@ -49,8 +49,24 @@ tools.knowledge_tools.knowledge_manager = knowledge_manager
 # Import SCF Manager instance
 from scf.manager_instance import scf_manager
 
+# --- Initialize session state variables ---
+# Initialize deep_research_mode before using it in the UI
+if 'deep_research_mode' not in st.session_state:
+    st.session_state.deep_research_mode = False
+
 # --- Streamlit UI ---
+# Extremely simplified UI to avoid any potential conflicts
 st.title("📄 Plan-ReAct Agent")
+
+# Place the toggle below the title with no custom styling
+deep_research = st.checkbox("🔍 Deep Research Mode",
+                          value=st.session_state.deep_research_mode,
+                          help="When enabled, the AI will perform more thorough research with more detailed results")
+
+# Update session state if toggle value changes
+if deep_research != st.session_state.deep_research_mode:
+    st.session_state.deep_research_mode = deep_research
+    st.rerun()
 
 # Function to get current conversation metadata
 def get_current_conversation_metadata():
@@ -95,6 +111,7 @@ if 'base_url' not in st.session_state:
     st.session_state.base_url = os.getenv("LLM_API_BASE_URL", "https://openrouter.ai/api/v1")
 if 'debug_mode' not in st.session_state:
     st.session_state.debug_mode = False
+# deep_research_mode is now initialized earlier in the file
 
 # Initialize session state
 if "messages" not in st.session_state:

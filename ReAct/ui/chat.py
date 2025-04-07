@@ -55,60 +55,56 @@ def delete_message(idx):
         st.rerun()
 
 def display_messages():
-    """Display chat messages with memory toggles and delete buttons."""
+    """Display chat messages with extremely simplified UI to avoid conflicts."""
     for idx, message in enumerate(st.session_state.messages):
-        with st.chat_message(message["role"]):
-            if message["role"] == "user":
-                # For user messages, use two columns
-                content_col, delete_col = st.columns([9, 1])
+        # Use the most basic display method possible
+        if message["role"] == "user":
+            # For user messages, display content with delete button
+            st.markdown(f"**User:** {message['content']}")
 
-                # Display message content in the left column
-                with content_col:
-                    st.markdown(message['content'])
+            # Add delete button as an icon button
+            col1, col2 = st.columns([9, 1])
+            with col2:
+                if st.button("🗑️", key=f"delete_message_{idx}", help="Delete this message"):
+                    delete_message(idx)
+        else:  # assistant messages
+            # For assistant messages, display content with memory toggle and delete button
+            st.markdown(f"**Assistant:** {message['content']}")
 
-                # Right column for delete button
-                with delete_col:
-                    # Add delete button (right-justified)
-                    if st.button("🗑️", key=f"delete_message_{idx}", help="Delete this message"):
-                        delete_message(idx)
-            else:  # assistant messages
-                # For assistant messages, use a single column
-                st.markdown(message['content'])
+            # Add memory toggle and delete button in columns
+            col1, col2 = st.columns([9, 1])
 
-                # Add controls in a single row at the bottom
-                # Create two columns for memory toggle and delete button
-                memory_col, delete_col = st.columns([8, 1])
+            with col1:
+                # Check if this message is already in memory tracking
+                is_remembered = True  # Default to True (include in memory)
+                if idx in st.session_state.message_memories:
+                    is_remembered = st.session_state.message_memories[idx]["remember"]
+                else:
+                    # Initialize memory for this message
+                    from tools.memory_tools import update_message_memory
+                    update_message_memory(idx, True)
 
-                # First column for memory toggle
-                with memory_col:
-                    # Check if this message is already in memory tracking
-                    is_remembered = True  # Default to True (include in memory)
-                    if idx in st.session_state.message_memories:
-                        is_remembered = st.session_state.message_memories[idx]["remember"]
-                    else:
-                        # Initialize memory for this message
-                        from tools.memory_tools import update_message_memory
-                        update_message_memory(idx, True)
+                # Create a toggle for memory inclusion
+                new_state = st.toggle(
+                    "🧠",
+                    value=is_remembered,
+                    key=f"memory_toggle_{idx}",
+                    help="Toggle to include/exclude this message from memory"
+                )
 
-                    # Create a toggle for memory inclusion
-                    new_state = st.toggle(
-                        "🧠",
-                        value=is_remembered,
-                        key=f"memory_toggle_{idx}",
-                        help="Toggle to include/exclude this message from memory"
-                    )
+                # Update memory if toggle state changed
+                if new_state != is_remembered:
+                    from tools.memory_tools import update_message_memory
+                    update_message_memory(idx, new_state)
+                    st.rerun()
 
-                    # Update memory if toggle state changed
-                    if new_state != is_remembered:
-                        from tools.memory_tools import update_message_memory
-                        update_message_memory(idx, new_state)
-                        st.rerun()
+            with col2:
+                # Add delete button
+                if st.button("🗑️", key=f"delete_message_{idx}", help="Delete this message"):
+                    delete_message(idx)
 
-                # Second column for delete button (left-justified)
-                with delete_col:
-                    # Add delete button
-                    if st.button("🗑️", key=f"delete_message_{idx}", help="Delete this message"):
-                        delete_message(idx)
+        # Add a separator between messages
+        st.markdown("---")
 
 def display_plan_progress():
     """Display plan progress during execution."""
@@ -250,28 +246,35 @@ def handle_url_scrape_request(prompt, client):
                     st.session_state.messages.append({"role": "assistant", "content": response})
                     new_message_idx = len(st.session_state.messages) - 1
 
-                    # Display message content
-                    st.markdown(response)
+                    # Display message content using basic components
+                    st.markdown(f"**Assistant:** {response}")
 
-                    # Add controls in a single row at the bottom
-                    # Create two columns for memory toggle and delete button
-                    memory_col, delete_col = st.columns([8, 1])
+                    # Add memory toggle and delete button in columns
+                    col1, col2 = st.columns([9, 1])
 
-                    # First column for memory toggle
-                    with memory_col:
+                    with col1:
                         # Add memory toggle
-                        st.toggle(
+                        is_remembered = True  # Default to True (include in memory)
+                        new_state = st.toggle(
                             "🧠",
-                            value=True,
+                            value=is_remembered,
                             key=f"memory_toggle_{new_message_idx}",
                             help="Toggle to include/exclude this message from memory"
                         )
 
-                    # Second column for delete button (left-justified)
-                    with delete_col:
+                        # Update memory if toggle state changed
+                        if not new_state:
+                            # Update to exclude from memory
+                            from tools.memory_tools import update_message_memory
+                            update_message_memory(new_message_idx, False)
+
+                    with col2:
                         # Add delete button
                         if st.button("🗑️", key=f"delete_message_{new_message_idx}", help="Delete this message"):
                             delete_message(new_message_idx)
+
+                    # Add a separator
+                    st.markdown("---")
 
                     # Update message memory
                     from tools.memory_tools import update_message_memory
@@ -291,28 +294,35 @@ def handle_url_scrape_request(prompt, client):
                     st.session_state.messages.append({"role": "assistant", "content": error_msg})
                     new_message_idx = len(st.session_state.messages) - 1
 
-                    # Display message content
-                    st.error(error_msg)
+                    # Display error message using basic components
+                    st.error(f"**Assistant:** {error_msg}")
 
-                    # Add controls in a single row at the bottom
-                    # Create two columns for memory toggle and delete button
-                    memory_col, delete_col = st.columns([8, 1])
+                    # Add memory toggle and delete button in columns
+                    col1, col2 = st.columns([9, 1])
 
-                    # First column for memory toggle
-                    with memory_col:
+                    with col1:
                         # Add memory toggle
-                        st.toggle(
+                        is_remembered = True  # Default to True (include in memory)
+                        new_state = st.toggle(
                             "🧠",
-                            value=True,
+                            value=is_remembered,
                             key=f"memory_toggle_{new_message_idx}",
                             help="Toggle to include/exclude this message from memory"
                         )
 
-                    # Second column for delete button (left-justified)
-                    with delete_col:
+                        # Update memory if toggle state changed
+                        if not new_state:
+                            # Update to exclude from memory
+                            from tools.memory_tools import update_message_memory
+                            update_message_memory(new_message_idx, False)
+
+                    with col2:
                         # Add delete button
                         if st.button("🗑️", key=f"delete_message_{new_message_idx}", help="Delete this message"):
                             delete_message(new_message_idx)
+
+                    # Add a separator
+                    st.markdown("---")
 
                     # Update message memory
                     from tools.memory_tools import update_message_memory
@@ -568,30 +578,35 @@ def handle_plan_completion(client):
     from tools.memory_tools import update_message_memory
     update_message_memory(new_message_idx, True)
 
-    # Display the processed response immediately
-    with st.chat_message("assistant"):
-        # Display message content
-        st.markdown(processed_response)
+    # Display the processed response immediately using basic components
+    st.markdown(f"**Assistant:** {processed_response}")
 
-        # Add controls in a single row at the bottom
-        # Create two columns for memory toggle and delete button
-        memory_col, delete_col = st.columns([10, 10])
+    # Add memory toggle and delete button in columns
+    col1, col2 = st.columns([9, 1])
 
-        # First column for memory toggle
-        with memory_col:
-            # Add memory toggle
-            st.toggle(
-                "🧠",
-                value=True,
-                key=f"memory_toggle_{new_message_idx}",
-                help="Toggle to include/exclude this message from memory"
-            )
+    with col1:
+        # Add memory toggle
+        is_remembered = True  # Default to True (include in memory)
+        new_state = st.toggle(
+            "🧠",
+            value=is_remembered,
+            key=f"memory_toggle_{new_message_idx}",
+            help="Toggle to include/exclude this message from memory"
+        )
 
-        # Second column for delete button (left-justified)
-        with delete_col:
-            # Add delete button
-            if st.button("🗑️", key=f"delete_message_{new_message_idx}", help="Delete this message"):
-                delete_message(new_message_idx)
+        # Update memory if toggle state changed
+        if not new_state:
+            # Update to exclude from memory
+            from tools.memory_tools import update_message_memory
+            update_message_memory(new_message_idx, False)
+
+    with col2:
+        # Add delete button
+        if st.button("🗑️", key=f"delete_message_{new_message_idx}", help="Delete this message"):
+            delete_message(new_message_idx)
+
+    # Add a separator
+    st.markdown("---")
 
     # Automatically save the conversation
     filename, _ = auto_save_conversation(st.session_state.messages, client, st.session_state.current_conversation_filename)
@@ -692,12 +707,10 @@ def handle_plan_failure():
             # Display message content
             st.markdown(processed_failure)
 
-            # Add controls in a single row at the bottom
-            # Create two columns for memory toggle and delete button
-            memory_col, delete_col = st.columns([10, 10])
+            # Simplified controls to avoid potential UI conflicts
+            col1, col2 = st.columns([9, 1])
 
-            # First column for memory toggle
-            with memory_col:
+            with col1:
                 # Add memory toggle
                 st.toggle(
                     "🧠",
@@ -706,8 +719,7 @@ def handle_plan_failure():
                     help="Toggle to include/exclude this message from memory"
                 )
 
-            # Second column for delete button (left-justified)
-            with delete_col:
+            with col2:
                 # Add delete button
                 if st.button("🗑️", key=f"delete_message_{new_message_idx}", help="Delete this message"):
                     delete_message(new_message_idx)
@@ -736,30 +748,35 @@ def handle_plan_failure():
         from tools.memory_tools import update_message_memory
         update_message_memory(new_message_idx, True)
 
-        # Display the processed failure message immediately
-        with st.chat_message("assistant"):
-            # Display message content
-            st.markdown(processed_failure)
+        # Display the processed failure message immediately using basic components
+        st.markdown(f"**Assistant:** {processed_failure}")
 
-            # Add controls in a single row at the bottom
-            # Create two columns for memory toggle and delete button
-            memory_col, delete_col = st.columns([10, 10])
+        # Add memory toggle and delete button in columns
+        col1, col2 = st.columns([9, 1])
 
-            # First column for memory toggle
-            with memory_col:
-                # Add memory toggle
-                st.toggle(
-                    "🧠",
-                    value=True,
-                    key=f"memory_toggle_{new_message_idx}",
-                    help="Toggle to include/exclude this message from memory"
-                )
+        with col1:
+            # Add memory toggle
+            is_remembered = True  # Default to True (include in memory)
+            new_state = st.toggle(
+                "🧠",
+                value=is_remembered,
+                key=f"memory_toggle_{new_message_idx}",
+                help="Toggle to include/exclude this message from memory"
+            )
 
-            # Second column for delete button (left-justified)
-            with delete_col:
-                # Add delete button
-                if st.button("🗑️", key=f"delete_message_{new_message_idx}", help="Delete this message"):
-                    delete_message(new_message_idx)
+            # Update memory if toggle state changed
+            if not new_state:
+                # Update to exclude from memory
+                from tools.memory_tools import update_message_memory
+                update_message_memory(new_message_idx, False)
+
+        with col2:
+            # Add delete button
+            if st.button("🗑️", key=f"delete_message_{new_message_idx}", help="Delete this message"):
+                delete_message(new_message_idx)
+
+        # Add a separator
+        st.markdown("---")
 
         # Automatically save the conversation
         from llm.client import get_openai_client
@@ -781,29 +798,30 @@ def process_user_input(prompt, client):
 
     # Add user message to chat history
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        # Create a container for the message content and controls
-        content_col, delete_col = st.columns([9, 1])
 
-        # Display message content in the left column
-        with content_col:
-            st.markdown(prompt)
+    # Display user message using basic components
+    st.markdown(f"**User:** {prompt}")
 
-        # Right column for delete button
-        with delete_col:
-            # Add delete button for user message (right-justified)
-            new_message_idx = len(st.session_state.messages) - 1
-            if st.button("🗑️", key=f"delete_message_{new_message_idx}", help="Delete this message"):
-                delete_message(new_message_idx)
+    # Add delete button as an icon button
+    new_message_idx = len(st.session_state.messages) - 1
+    _, col2 = st.columns([9, 1])
+    with col2:
+        if st.button("🗑️", key=f"delete_message_{new_message_idx}", help="Delete this message"):
+            delete_message(new_message_idx)
 
-        # Create status container right below user message
-        # Initialize status_container if it doesn't exist yet
-        if 'status_container' not in st.session_state:
-            st.session_state.status_container = st.empty()
-        else:
-            st.session_state.status_container.empty()
-            # Recreate the container to ensure it's positioned below the current user message
-            st.session_state.status_container = st.empty()
+    # Add a separator
+    st.markdown("---")
+
+    # Create status container right below user message
+    # Initialize status_container if it doesn't exist yet
+    if 'status_container' not in st.session_state:
+        st.session_state.status_container = st.empty()
+    else:
+        st.session_state.status_container.empty()
+        # Recreate the container to ensure it's positioned below the current user message
+        st.session_state.status_container = st.empty()
+
+    # Deep research mode toggle is now displayed in the main UI, so we don't need to show status here
 
     # Clear previous execution state
     st.session_state.plan = None

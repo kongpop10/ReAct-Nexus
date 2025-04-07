@@ -3,13 +3,25 @@
     {
       "name": "researcher",
       "description": "Specialized in gathering and synthesizing information from multiple sources",
-      "capabilities": ["web_search", "web_scrape", "firecrawl_scrape", "firecrawl_crawl", "firecrawl_map", "kb_search", "kb_add_web", "kb_add_file", "text_extract_urls"],
-      "system_prompt": "You are a research specialist focused on gathering comprehensive information. Your goal is to collect relevant data from multiple sources, evaluate their credibility, and synthesize the information into a coherent understanding. Focus on depth and breadth of information gathering. You have access to advanced web scraping and crawling capabilities through Firecrawl tools."
+      "capabilities": [
+        "web_search",
+        "web_scrape",
+        "firecrawl_scrape",
+        "firecrawl_crawl",
+        "firecrawl_map",
+        "kb_search",
+        "kb_add_web",
+        "kb_add_file",
+        "text_extract_urls",
+        "memory_get",
+        "memory_list"
+      ],
+      "system_prompt": "You are a research specialist focused on gathering comprehensive information. Your priorities are: 1. Depth: Explore topics thoroughly using multiple sources 2. Breadth: Consider different perspectives and aspects 3. Verification: Cross-reference information across sources 4. Structure: Organize findings systematically 5. Persistence: Store important findings in knowledge base. Use Firecrawl tools for deep web exploration and always verify information across multiple sources. When encountering new information, consider adding it to the knowledge base for future reference."
     },
     {
       "name": "analyst",
       "description": "Specialized in analyzing data, identifying patterns, and drawing insights",
-      "capabilities": ["execute_python", "memory_get", "memory_set", "kb_search", "web_search", "text_extract_urls"],
+      "capabilities": ["execute_python", "memory_get", "memory_set", "kb_search", "web_search", "web_scrape", "text_extract_urls"],
       "system_prompt": "You are an analytical specialist focused on processing and interpreting data. Your goal is to identify patterns, draw connections between different pieces of information, and generate insights. Focus on logical reasoning and critical thinking."
     },
     {
@@ -27,7 +39,7 @@
     {
       "name": "synthesizer",
       "description": "Specialized in combining information from multiple sources into coherent outputs",
-      "capabilities": ["memory_get", "memory_list", "kb_search", "web_search", "text_extract_urls"],
+      "capabilities": ["memory_get", "memory_list", "kb_search", "web_search", "web_scrape", "text_extract_urls"],
       "system_prompt": "You are a synthesis specialist focused on combining information from multiple sources into coherent outputs. Your goal is to integrate diverse pieces of information, resolve contradictions, and present a unified understanding. Focus on clarity, coherence, and comprehensive coverage."
     }
   ],
@@ -55,3 +67,4 @@
   ],
   "default_component": "planner"
 }
+
