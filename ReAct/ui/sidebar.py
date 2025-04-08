@@ -417,6 +417,17 @@ def render_conversation_sidebar(client):
     except Exception:
         conversations = []
 
+    # Deep Research Mode toggle switch
+    st.sidebar.toggle("🔍 Deep Research Mode",
+                     value=st.session_state.deep_research_mode,
+                     help="When enabled, the AI will perform more thorough research with more detailed results",
+                     key="deep_research_toggle")
+
+    # Update session state if toggle value changes
+    if 'deep_research_toggle' in st.session_state and st.session_state.deep_research_toggle != st.session_state.deep_research_mode:
+        st.session_state.deep_research_mode = st.session_state.deep_research_toggle
+        st.rerun()
+
     # Conversations section directly in sidebar (not in expander)
     st.sidebar.subheader("📂 Conversations")
     st.sidebar.button("➕ New Chat", key="new_chat_button",
@@ -424,7 +435,10 @@ def render_conversation_sidebar(client):
                  'messages': [],
                  'current_conversation_filename': None,
                  'persistent_memory': {},
-                 'message_memories': {}
+                 'message_memories': {},
+                 'plan': None,
+                 'current_step_index': -1,
+                 'execution_log': []
              }),
              use_container_width=True)
 

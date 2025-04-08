@@ -56,17 +56,7 @@ if 'deep_research_mode' not in st.session_state:
 
 # --- Streamlit UI ---
 # Extremely simplified UI to avoid any potential conflicts
-st.title("📄 Plan-ReAct Agent")
-
-# Place the toggle below the title with no custom styling
-deep_research = st.checkbox("🔍 Deep Research Mode",
-                          value=st.session_state.deep_research_mode,
-                          help="When enabled, the AI will perform more thorough research with more detailed results")
-
-# Update session state if toggle value changes
-if deep_research != st.session_state.deep_research_mode:
-    st.session_state.deep_research_mode = deep_research
-    st.rerun()
+st.title("📄 ReAct Nexus")
 
 # Function to get current conversation metadata
 def get_current_conversation_metadata():
