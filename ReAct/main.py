@@ -6,7 +6,11 @@ web scraping, stock data retrieval, conversation management, and Python code exe
 """
 import streamlit as st
 # Must be the first Streamlit command
-st.set_page_config(layout="wide")
+st.set_page_config(
+    page_title="ReAct Nexus",
+    page_icon="🔸",  # Nexus-like symbol (octagonal sign)
+    layout="wide"
+)
 
 import os
 from dotenv import load_dotenv
@@ -56,7 +60,7 @@ if 'deep_research_mode' not in st.session_state:
 
 # --- Streamlit UI ---
 # Extremely simplified UI to avoid any potential conflicts
-st.title("📄 ReAct Nexus")
+st.title("🔸 ReAct Nexus")
 
 # Function to get current conversation metadata
 def get_current_conversation_metadata():
