@@ -22,11 +22,12 @@ DEFAULT_MODELS = {
 TOOL_DESCRIPTIONS = """
 Available Tools:
 - web_search(query: str): Searches the web for the given query. Returns a list of search results (title, url, snippet).
-- web_scrape(url: str): Fetches and extracts the main text content from a given URL or list of URLs. Returns the text content or a JSON object with URLs as keys and content as values. You can also directly ask to scrape a URL and use it as knowledge in the conversation (e.g., "Please scrape https://example.com and use it as knowledge").
+- web_scrape(url: str): Fetches and extracts the main text content from a given URL or list of URLs. For document files (PDF, Word, Excel, PowerPoint, etc.), automatically uses firecrawl_scrape for better document handling. Returns the text content or a JSON object with URLs as keys and content as values. You can also directly ask to scrape a URL and use it as knowledge in the conversation (e.g., "Please scrape https://example.com and use it as knowledge").
 - get_stock_data(symbol: str) or get_stock_data(ticker: str) or get_stock_data(stock_symbol: str): Fetches real-time stock data for the given stock symbol using Alpha Vantage API. Returns stock information in JSON format.
 - read_file(filename: str): Reads the content of the specified file from the workspace. Returns the file content.
 - write_file(filename: str, content: str, append: bool = False) or write_file(filename: str, text: str, append: bool = False): Writes or appends the given content to the specified file in the workspace. Accepts either 'content' or 'text' parameter. If append=True, adds to the existing file; if append=False (default), overwrites the file. Returns a success or error message.
 - list_files(directory: str = None): Lists all files in the workspace directory or a specified subdirectory. Returns a list of filenames.
+- enhanced_list_files(directory: str = None): Lists all files in the workspace directory or a specified subdirectory with improved formatting. Files are categorized by type and displayed with appropriate icons. Returns a formatted markdown string.
 - delete_file(filename: str): Deletes the specified file from the workspace directory. Returns a success or error message.
 - execute_python(code: str, reset: bool = False): Executes the provided Python code snippet. Can be used for calculations, data manipulation, etc. Returns the output/result or error. Use standard libraries (os, json, requests, etc. are available). Print statements will be captured as output. Variables defined in one execution are available in subsequent executions. Set reset=True to clear all variables before execution. !!! CAUTION: Security risk if code is not controlled !!!
 - reset_python_environment(): Resets the Python execution environment by clearing all stored variables. Returns a success message.
@@ -39,7 +40,7 @@ Text Processing Tools:
 - text_extract_urls(text: str): Extracts all URLs from the provided text. Returns a list of extracted URLs.
 
 Firecrawl Tools (Advanced Web Scraping):
-- firecrawl_scrape(url: str, formats: list = None, extract_schema: dict = None, extract_prompt: str = None, parse_pdf: bool = True): Scrapes a URL using Firecrawl and returns the content in specified formats. Formats can include 'markdown', 'html', and 'json'. Can extract structured data using a schema or a prompt. Automatically parses PDF content when the URL points to a PDF file (set parse_pdf=False to disable).
+- firecrawl_scrape(url: str, formats: list = None, extract_schema: dict = None, extract_prompt: str = None, parse_pdf: bool = True): Scrapes a URL using Firecrawl and returns the content in specified formats. Formats can include 'markdown', 'html', and 'json'. Can extract structured data using a schema or a prompt. Specialized for handling document files (PDF, Word, Excel, PowerPoint, etc.) and automatically parses their content. The web_scrape tool automatically redirects to this tool when document files are detected.
 - firecrawl_crawl(url: str, limit: int = 10, formats: list = None, exclude_paths: list = None, parse_pdf: bool = True): Crawls a website using Firecrawl and returns content from all crawled pages. Limit controls the maximum number of pages to crawl. Automatically parses PDF content when URLs point to PDF files (set parse_pdf=False to disable).
 - firecrawl_map(url: str, include_sitemap: bool = True, exclude_subdomains: bool = False): Maps a website using Firecrawl and returns a list of all URLs.
 

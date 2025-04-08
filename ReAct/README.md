@@ -16,12 +16,14 @@ A **modular Streamlit-based platform** integrating multiple AI models, real-time
   - Save/load conversations with metadata (title, timestamp)
   - Automatic conversation saving and indexing
   - Schema migration for legacy files
+  - Delete specific messages in conversations
 - **File Operations**: Read, write, delete, list files within a workspace directory
 - **Memory Management**: Store and manage conversation context and variables
 - **Specialized Component Framework (SCF)**:
   - Break down complex problems into specialized sub-problems
   - Route queries to specialized components (Researcher, Analyst, Planner, Executor, Synthesizer)
   - Component-specific system prompts and tool filtering
+  - Configurable via JSON file
 - **Dynamic Plan Adjustment**:
   - Recover from failures with RETRY, REPLACE, SKIP, or ABORT actions
   - Add additional steps during execution based on new information
@@ -29,6 +31,9 @@ A **modular Streamlit-based platform** integrating multiple AI models, real-time
 - **Cross-Query Memory**:
   - Maintain context across multiple queries within the same conversation
   - Toggle inclusion/exclusion of previous responses in memory
+- **Deep Research Mode**:
+  - Toggle for more thorough research with detailed results
+  - Accessible directly from the main interface
 
 ---
 
@@ -69,6 +74,8 @@ FIRECRAWL_API_KEY=your_firecrawl_key
 
 These are required for AI completions, web search, stock data, and advanced web scraping/crawling respectively.
 
+The default API base URL is set to OpenRouter (`https://openrouter.ai/api/v1`), but you can configure it to use any compatible API endpoint.
+
 ### Model Configuration
 
 The application uses different models for different tasks:
@@ -96,17 +103,16 @@ The SCF includes several specialized components:
 
 Each component uses the same LLM models configured in `model_config.json` but with different system prompts and tool capabilities optimized for their specific functions.
 
+The SCF automatically routes queries to the appropriate component based on the query complexity and content. For medium to high complexity queries, the system will select the most appropriate specialized component to handle the request.
+
 ---
 
 ## Usage
 
-Run the app with Streamlit using either the original or refactored version:
+Run the app with Streamlit using the refactored version:
 
 ```bash
-# Original version
-streamlit run app.py
-
-# Refactored version (recommended)
+# Run the application
 streamlit run main.py
 # Or use the provided scripts
 ./run.sh  # Linux/Mac
@@ -114,6 +120,10 @@ run.bat   # Windows
 ```
 
 Navigate to the local URL provided by Streamlit to access the interface.
+
+### Deep Research Mode
+
+The application includes a "Deep Research Mode" toggle at the top of the interface. When enabled, the AI will perform more thorough research with more detailed results. This is useful for complex queries that require in-depth analysis.
 
 ---
 
@@ -125,9 +135,9 @@ The application has been refactored for improved modularity and maintainability:
 /ReAct
 │
 ├── config.py                # Configuration settings and constants
+├── app_config.py            # Application configuration and shared instances
 │
-├── main.py                  # New entry point (refactored version)
-├── app.py                   # Original entry point (kept for reference)
+├── main.py                  # Main entry point
 │
 ├── tools/                   # Tool implementations
 │   ├── __init__.py          # Tool registry
@@ -179,19 +189,21 @@ The application has been refactored for improved modularity and maintainability:
 │
 ├── agent_workspace/         # Workspace directory for file operations
 │
-├── run_refactored.sh        # Script to run refactored version (Linux/Mac)
-├── run_refactored.bat       # Script to run refactored version (Windows)
+├── model_config.json        # LLM model configuration
+├── run.sh                   # Script to run the application (Linux/Mac)
+├── run.bat                  # Script to run the application (Windows)
 ├── requirements.txt
 ├── README.md
-├── REFACTORING.md           # Refactoring documentation
-├── COMPLEX_QUERY_IMPROVEMENTS.md # MCP documentation
 ├── .gitignore
 ```
 
 ### Summary of key folders and files:
 
 - **`config.py`**: Centralized configuration settings
-- **`main.py`**: New entry point for the refactored application
+- **`app_config.py`**: Application configuration and shared instances
+- **`main.py`**: Main entry point for the application
+- **`model_config.json`**: LLM model configuration
+- **`scf_config.json`**: Specialized Component Framework configuration
 - **`tools/`**: All tool implementations with a central registry
 - **`llm/`**: LLM interaction, planning, execution, and response generation
 - **`scf/`**: Specialized Component Framework for complex queries
@@ -210,9 +222,9 @@ The application has been refactored for improved modularity and maintainability:
 - The Specialized Component Framework (SCF) system allows handling complex queries more effectively.
 - Dynamic Plan Adjustment enables recovery from failures and adaptation to new information.
 - Cross-Query Memory maintains context across multiple queries within the same conversation.
+- Deep Research Mode provides more thorough research capabilities for complex queries.
 - The app **allows arbitrary Python code execution**, which is **unsafe for production**—use only in a secure, sandboxed environment.
-- For detailed information about the refactoring, see `REFACTORING.md`.
-- For detailed information about complex query improvements, see `COMPLEX_QUERY_IMPROVEMENTS.md`.
+- The UI has been optimized for a more streamlined user experience with compact conversation management and configurable components.
 
 ---
 
@@ -225,8 +237,9 @@ MIT License
 ## Credits
 
 - Built with [Streamlit](https://streamlit.io/)
-- AI powered by [OpenAI](https://openai.com/) and [Google Gemini](https://ai.google.dev/) (via [OpenRouter](https://openrouter.ai/))
+- AI powered by [OpenAI](https://openai.com/), [Google Gemini](https://ai.google.dev/), and other LLMs (via [OpenRouter](https://openrouter.ai/))
 - Web search via [Tavily](https://www.tavily.com/)
+- Advanced web scraping via [Firecrawl](https://firecrawl.dev/)
 - Stock data via [Alpha Vantage](https://www.alphavantage.co/)
 - Specialized Component Framework inspired by specialized agent frameworks
 - Dynamic Plan Adjustment inspired by adaptive planning systems

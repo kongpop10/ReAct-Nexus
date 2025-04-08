@@ -6,6 +6,7 @@ import traceback
 import streamlit as st
 from tools import TOOLS
 from utils.status import log_debug
+from processing.file_listing_handler import process_file_listing_response
 
 def run_executor_step(client, step: dict, context: dict, executor_model: str) -> tuple[str, str, str]:
     """Executes a single step using the Executor LLM and tools (simulates ReAct)."""
@@ -231,7 +232,16 @@ Provide *only* the JSON object as your response.
                 elif action['tool'] == "web_search" and ('query' not in tool_args or not tool_args['query']):
                     raise ValueError("web_search requires a 'query' parameter")
 
-                observation = tool_func(**tool_args)
+                # Execute the tool
+                tool_result = tool_func(**tool_args)
+
+                # Process file listing responses to make them more user-friendly
+                if action['tool'] == "list_files":
+                    processed_result = process_file_listing_response(tool_result)
+                    observation = processed_result
+                else:
+                    observation = tool_result
+
                 st.success(f"Tool execution completed: {action['tool']}")
             else:
                 # For 'None' tool, we just need the comment as observation

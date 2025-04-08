@@ -11,6 +11,7 @@ from tavily import TavilyClient
 from data_acquisition.news_scraper import WebScraper
 from data_acquisition.process_search_results import process_search_results
 from utils.status import update_tool_status
+from tools.firecrawl_tools import firecrawl_scrape
 
 def extract_urls_from_markdown(markdown_text: str) -> list:
     """Extract all URLs from markdown-formatted text."""
@@ -100,8 +101,71 @@ def web_search(query: str) -> str:
     except Exception as e:
         return json.dumps({"error": f"Search failed: {str(e)}"})
 
+def is_document_url(url: str) -> bool:
+    """Detect if a URL points to a document or binary file that requires special handling.
+
+    Args:
+        url (str): The URL to check
+
+    Returns:
+        bool: True if the URL appears to point to a document file, False otherwise
+    """
+    # List of file extensions that should be handled by Firecrawl
+    document_extensions = [
+        # PDF files
+        '.pdf',
+        # Microsoft Office documents
+        '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+        # OpenDocument formats
+        '.odt', '.ods', '.odp',
+        # Other document formats
+        '.rtf', '.epub', '.mobi',
+        # Archive formats
+        '.zip', '.rar', '.7z', '.tar', '.gz',
+        # Image formats (if they contain text that needs extraction)
+        '.tiff', '.tif', '.png', '.jpg', '.jpeg',
+        # Other binary formats
+        '.csv', '.xml', '.json'
+    ]
+
+    # Check if the URL ends with any of the document extensions (case insensitive)
+    url_lower = url.lower()
+    if any(url_lower.endswith(ext) for ext in document_extensions):
+        return True
+
+    # Check if the URL contains document type indicators in the path
+    document_indicators = [
+        '/pdf/', '/pdfs/', '/doc/', '/docs/', '/document/', '/documents/',
+        '/xls/', '/xlsx/', '/excel/', '/spreadsheet/', '/spreadsheets/',
+        '/ppt/', '/pptx/', '/powerpoint/', '/presentation/', '/presentations/',
+        '/download/', '/file/', '/attachment/', '/attachments/',
+        'document.', 'file.', 'download.', 'attachment.'
+    ]
+    if any(indicator in url_lower for indicator in document_indicators):
+        return True
+
+    # Check if the URL has document-related query parameters
+    document_params = [
+        'format=pdf', 'type=pdf', 'download=pdf', 'file=pdf',
+        'format=doc', 'type=doc', 'download=doc', 'file=doc',
+        'format=xls', 'type=xls', 'download=xls', 'file=xls',
+        'format=ppt', 'type=ppt', 'download=ppt', 'file=ppt',
+        'format=docx', 'type=docx', 'download=docx', 'file=docx',
+        'format=xlsx', 'type=xlsx', 'download=xlsx', 'file=xlsx',
+        'format=pptx', 'type=pptx', 'download=pptx', 'file=pptx',
+        'download=true', 'attachment=true', 'file=true', 'doc=true'
+    ]
+    if any(param in url_lower for param in document_params):
+        return True
+
+    return False
+
 def web_scrape(url: str = None, urls: str = None) -> str:
-    """Scrapes the text content of a given URL or list of URLs using WebScraper class."""
+    """Scrapes the text content of a given URL or list of URLs.
+
+    For document files (PDF, Word, Excel, PowerPoint, etc.), automatically redirects to firecrawl_scrape
+    for better document handling. For regular web pages, uses the WebScraper class.
+    """
     # Handle both parameter names (url and urls) for backward compatibility
     target_url = url if url is not None else urls
     update_tool_status("web_scrape", url=target_url)
@@ -110,8 +174,6 @@ def web_scrape(url: str = None, urls: str = None) -> str:
         return "Error: No URL provided. Please provide a URL using the 'url' parameter."
 
     try:
-        scraper = WebScraper()
-
         # Handle both single URL strings and lists of URLs
         if isinstance(target_url, str):
             # Check if the input might be a string representation of a list
@@ -122,19 +184,69 @@ def web_scrape(url: str = None, urls: str = None) -> str:
                     if isinstance(url_list, list):
                         results = {}
                         for single_url in url_list:
-                            results[single_url] = scraper.scrape_content(single_url)
+                            # Check if the URL is a document file
+                            if is_document_url(single_url):
+                                # Use firecrawl_scrape for document files
+                                st.info(f"Detected document URL: {single_url}. Using Firecrawl for better document handling.")
+                                firecrawl_result = json.loads(firecrawl_scrape(single_url))
+                                if 'markdown' in firecrawl_result:
+                                    results[single_url] = firecrawl_result['markdown']
+                                else:
+                                    results[single_url] = "PDF content could not be extracted. See full response: " + json.dumps(firecrawl_result)
+                            else:
+                                # Use regular scraper for non-PDFs
+                                scraper = WebScraper()
+                                results[single_url] = scraper.scrape_content(single_url)
                         return json.dumps(results)
                 except json.JSONDecodeError:
                     # If it's not valid JSON, treat it as a single URL
-                    return scraper.scrape_content(target_url)
+                    single_url = target_url
+                    # Check if the URL is a document file
+                    if is_document_url(single_url):
+                        # Use firecrawl_scrape for document files
+                        st.info(f"Detected document URL: {single_url}. Using Firecrawl for better document handling.")
+                        firecrawl_result = json.loads(firecrawl_scrape(single_url))
+                        if 'markdown' in firecrawl_result:
+                            return firecrawl_result['markdown']
+                        else:
+                            return "PDF content could not be extracted. See full response: " + json.dumps(firecrawl_result)
+                    else:
+                        # Use regular scraper for non-PDFs
+                        scraper = WebScraper()
+                        return scraper.scrape_content(single_url)
             else:
                 # It's a regular URL string
-                return scraper.scrape_content(target_url)
+                single_url = target_url
+                # Check if the URL is a document file
+                if is_document_url(single_url):
+                    # Use firecrawl_scrape for document files
+                    st.info(f"Detected document URL: {single_url}. Using Firecrawl for better document handling.")
+                    firecrawl_result = json.loads(firecrawl_scrape(single_url))
+                    if 'markdown' in firecrawl_result:
+                        return firecrawl_result['markdown']
+                    else:
+                        return "PDF content could not be extracted. See full response: " + json.dumps(firecrawl_result)
+                else:
+                    # Use regular scraper for non-PDFs
+                    scraper = WebScraper()
+                    return scraper.scrape_content(single_url)
         elif isinstance(target_url, list):
             # It's already a list of URLs
             results = {}
             for single_url in target_url:
-                results[single_url] = scraper.scrape_content(single_url)
+                # Check if the URL is a document file
+                if is_document_url(single_url):
+                    # Use firecrawl_scrape for document files
+                    st.info(f"Detected document URL: {single_url}. Using Firecrawl for better document handling.")
+                    firecrawl_result = json.loads(firecrawl_scrape(single_url))
+                    if 'markdown' in firecrawl_result:
+                        results[single_url] = firecrawl_result['markdown']
+                    else:
+                        results[single_url] = "PDF content could not be extracted. See full response: " + json.dumps(firecrawl_result)
+                else:
+                    # Use regular scraper for non-PDFs
+                    scraper = WebScraper()
+                    results[single_url] = scraper.scrape_content(single_url)
             return json.dumps(results)
         else:
             return f"Invalid URL format: {target_url}. Expected a string URL or a list of URLs."

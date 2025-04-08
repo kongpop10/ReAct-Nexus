@@ -6,6 +6,7 @@ import os
 import streamlit as st
 from config import WORKSPACE_DIR
 from utils.status import update_tool_status
+from processing.file_listing_handler import format_directory_listing
 
 def read_file(filename: str) -> str:
     """Reads content from a file in the workspace directory."""
@@ -56,27 +57,11 @@ def list_files(directory: str = None) -> str:
     """
     if directory:
         update_tool_status("list_files", directory=directory)
-        # Handle both absolute paths and relative paths within the workspace
-        if os.path.isabs(directory):
-            target_dir = directory
-        else:
-            target_dir = os.path.join(WORKSPACE_DIR, directory)
     else:
         update_tool_status("list_files")
-        target_dir = WORKSPACE_DIR
 
-    try:
-        if not os.path.exists(target_dir):
-            return f"Error: Directory '{target_dir}' not found."
-        if not os.path.isdir(target_dir):
-            return f"Error: '{target_dir}' is not a directory."
-
-        files = os.listdir(target_dir)
-        if not files:
-            return f"Directory '{target_dir}' is empty."
-        return "\n".join(files)
-    except Exception as e:
-        return f"Error listing files: {e}"
+    # Use the enhanced directory listing format
+    return format_directory_listing(directory)
 
 def delete_file(filename: str) -> str:
     """Deletes a file from the workspace directory.

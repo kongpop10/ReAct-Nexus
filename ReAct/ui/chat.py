@@ -60,16 +60,15 @@ def display_messages():
         # Use the most basic display method possible
         if message["role"] == "user":
             # For user messages, display content with delete button
-            st.markdown(f"**User:** {message['content']}")
-
-            # Add delete button as an icon button
             col1, col2 = st.columns([9, 1])
+            with col1:
+                st.markdown(f"**User:** {message['content']}")
             with col2:
                 if st.button("🗑️", key=f"delete_message_{idx}", help="Delete this message"):
                     delete_message(idx)
         else:  # assistant messages
             # For assistant messages, display content with memory toggle and delete button
-            st.markdown(f"**Assistant:** {message['content']}")
+            st.markdown(f"{message['content']}")
 
             # Add memory toggle and delete button in columns
             col1, col2 = st.columns([9, 1])
@@ -247,7 +246,7 @@ def handle_url_scrape_request(prompt, client):
                     new_message_idx = len(st.session_state.messages) - 1
 
                     # Display message content using basic components
-                    st.markdown(f"**Assistant:** {response}")
+                    st.markdown(f"{response}")
 
                     # Add memory toggle and delete button in columns
                     col1, col2 = st.columns([9, 1])
@@ -295,7 +294,7 @@ def handle_url_scrape_request(prompt, client):
                     new_message_idx = len(st.session_state.messages) - 1
 
                     # Display error message using basic components
-                    st.error(f"**Assistant:** {error_msg}")
+                    st.error(f"{error_msg}")
 
                     # Add memory toggle and delete button in columns
                     col1, col2 = st.columns([9, 1])
@@ -579,7 +578,7 @@ def handle_plan_completion(client):
     update_message_memory(new_message_idx, True)
 
     # Display the processed response immediately using basic components
-    st.markdown(f"**Assistant:** {processed_response}")
+    st.markdown(f"{processed_response}")
 
     # Add memory toggle and delete button in columns
     col1, col2 = st.columns([9, 1])
@@ -749,7 +748,7 @@ def handle_plan_failure():
         update_message_memory(new_message_idx, True)
 
         # Display the processed failure message immediately using basic components
-        st.markdown(f"**Assistant:** {processed_failure}")
+        st.markdown(f"{processed_failure}")
 
         # Add memory toggle and delete button in columns
         col1, col2 = st.columns([9, 1])
@@ -800,11 +799,10 @@ def process_user_input(prompt, client):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     # Display user message using basic components
-    st.markdown(f"**User:** {prompt}")
-
-    # Add delete button as an icon button
     new_message_idx = len(st.session_state.messages) - 1
-    _, col2 = st.columns([9, 1])
+    col1, col2 = st.columns([9, 1])
+    with col1:
+        st.markdown(f"**User:** {prompt}")
     with col2:
         if st.button("🗑️", key=f"delete_message_{new_message_idx}", help="Delete this message"):
             delete_message(new_message_idx)

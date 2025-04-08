@@ -3,6 +3,7 @@ Response generation functions for the ReAct application.
 """
 import re
 import streamlit as st
+from processing.file_listing_handler import process_file_listing_response
 
 def generate_final_response(client, user_query, plan):
     """Generates a final response to the user's query based on execution results."""
@@ -17,7 +18,12 @@ def generate_final_response(client, user_query, plan):
 
     for step in plan:
         if step["result"] and step["status"] == "Completed":
-            results_summary.append(f"Step {step['step_id']} ({step['description']}): {step['result']}")
+            # Process file listing responses to make them more user-friendly
+            if step["tool_suggestion"] == "list_files":
+                processed_result = process_file_listing_response(step["result"])
+                results_summary.append(f"Step {step['step_id']} ({step['description']}): {processed_result}")
+            else:
+                results_summary.append(f"Step {step['step_id']} ({step['description']}): {step['result']}")
 
             # Check if this step involves web scraping
             if step["tool_suggestion"] == "web_scrape" and "url" in step["description"].lower():
