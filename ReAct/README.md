@@ -1,4 +1,4 @@
-# Plan-ReAct Agent: Advanced Conversational AI Workspace
+# ReAct-Nexus: Advanced Conversational AI Workspace
 
 A **modular Streamlit-based platform** integrating multiple AI models, real-time search, web scraping, stock data retrieval, conversation management, and Python code execution capabilities with advanced planning and execution features.
 
@@ -33,13 +33,18 @@ A **modular Streamlit-based platform** integrating multiple AI models, real-time
   - Toggle inclusion/exclusion of previous responses in memory
 - **Deep Research Mode**:
   - Toggle for more thorough research with detailed results
-  - Accessible directly from the main interface
+  - Accessible from the sidebar above the Conversations section
 
 ---
 
 ## Installation
 
 1. **Clone the repository**
+
+```bash
+git clone https://github.com/kongpop10/ReAct-Nexus.git
+cd ReAct-Nexus
+```
 
 2. **Install dependencies**
 
@@ -114,16 +119,13 @@ Run the app with Streamlit using the refactored version:
 ```bash
 # Run the application
 streamlit run main.py
-# Or use the provided scripts
-./run.sh  # Linux/Mac
-run.bat   # Windows
 ```
 
 Navigate to the local URL provided by Streamlit to access the interface.
 
 ### Deep Research Mode
 
-The application includes a "Deep Research Mode" toggle at the top of the interface. When enabled, the AI will perform more thorough research with more detailed results. This is useful for complex queries that require in-depth analysis.
+The application includes a "Deep Research Mode" toggle in the sidebar above the Conversations section. When enabled, the AI will perform more thorough research with more detailed results. This is useful for complex queries that require in-depth analysis.
 
 ---
 
@@ -132,7 +134,7 @@ The application includes a "Deep Research Mode" toggle at the top of the interfa
 The application has been refactored for improved modularity and maintainability:
 
 ```
-/ReAct
+/ReAct-Nexus
 │
 ├── config.py                # Configuration settings and constants
 ├── app_config.py            # Application configuration and shared instances
