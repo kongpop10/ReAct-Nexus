@@ -1,5 +1,6 @@
 # Ignore environment variable definitions containing secrets
 .env
+.env.backup
 
 # Ignore Python cache and virtual environment folders
 __pycache__/
@@ -19,3 +20,6 @@ venv/
 # Existing ignore
 
 .qodo
+
+# Ignore local ReAct folder (should be at root level in git)
+ReAct/
