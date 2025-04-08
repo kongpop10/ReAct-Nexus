@@ -1,6 +1,6 @@
 # ReAct-Nexus: Advanced Conversational AI Workspace
 
-A **modular Streamlit-based platform** integrating multiple AI models, real-time search, web scraping, stock data retrieval, conversation management, and Python code execution capabilities with advanced planning and execution features.
+A **modular Streamlit-based platform** integrating multiple AI models, real-time search, web scraping, stock data retrieval, conversation management, and Python code execution capabilities with advanced planning and execution features. ReAct-Nexus provides a comprehensive environment for building and interacting with AI-powered conversational agents.
 
 ---
 
@@ -114,10 +114,18 @@ The SCF automatically routes queries to the appropriate component based on the q
 
 ## Usage
 
-Run the app with Streamlit using the refactored version:
+### Running the Application
+
+You can run the application in two ways:
+
+1. **Using the batch file (Windows)**:
+   - Simply double-click the `run_react.bat` file
+   - Or run it from the Windows Start Menu if you've created a shortcut
+
+2. **Using Streamlit directly**:
 
 ```bash
-# Run the application
+# Run the application from the command line
 streamlit run main.py
 ```
 
@@ -192,8 +200,6 @@ The application has been refactored for improved modularity and maintainability:
 ├── agent_workspace/         # Workspace directory for file operations
 │
 ├── model_config.json        # LLM model configuration
-├── run.sh                   # Script to run the application (Linux/Mac)
-├── run.bat                  # Script to run the application (Windows)
 ├── requirements.txt
 ├── README.md
 ├── .gitignore
@@ -227,6 +233,7 @@ The application has been refactored for improved modularity and maintainability:
 - Deep Research Mode provides more thorough research capabilities for complex queries.
 - The app **allows arbitrary Python code execution**, which is **unsafe for production**—use only in a secure, sandboxed environment.
 - The UI has been optimized for a more streamlined user experience with compact conversation management and configurable components.
+- The application supports Windows, macOS, and Linux platforms, with Windows-specific shortcuts provided for convenience.
 
 ---
 
@@ -245,3 +252,7 @@ MIT License
 - Stock data via [Alpha Vantage](https://www.alphavantage.co/)
 - Specialized Component Framework inspired by specialized agent frameworks
 - Dynamic Plan Adjustment inspired by adaptive planning systems
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
