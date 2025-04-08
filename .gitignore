@@ -1,24 +1,57 @@
 # Ignore environment variable definitions containing secrets
 .env
 .env.backup
+.env.bak
+.envrc
 
 # Ignore Python cache and virtual environment folders
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.env.bak
 venv/
-.envrc
+.venv/
+env/
+ENV/
+pyenv/
+
+# Ignore Python distribution and build directories
+dist/
+build/
+*.egg-info/
+*.egg
 
 # Ignore Jupyter notebooks checkpoints
 .ipynb_checkpoints/
 
-# Ignore VSCode settings
+# Ignore coverage and testing related files
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Ignore editor/IDE settings
 .vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore log files
+*.log
+
+# Ignore Streamlit cache
+.streamlit/
+
+# Ignore agent workspace (runtime data)
+agent_workspace/
 
 # Existing ignore
-
 .qodo
 
 # Ignore local ReAct folder (should be at root level in git)
