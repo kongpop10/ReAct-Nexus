@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toroidal Lifter Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.9/dat.gui.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@6.5.95/css/materialdesignicons.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f7fa;
+            color: #2c3e50;
+            overflow-x: hidden;
+        }
+
+        #canvas-container {
+            position: relative;
+            width: 100%;
+            height: 70vh;
+            background-color: #1a1a2e;
+            border-radius: 10px;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 100;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .control-btn {
+            background-color: #16213e;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.3s ease;
+        }
+
+        .control-btn:hover {
+            background-color: #0f3460;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            padding: 20px 0;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: #16213e;
+        }
+
+        .parameters {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .parameter-card {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .parameter-card h3 {
+            margin-bottom: 15px;
+            color: #0f3460;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .color-box {
+            width: 15px;
+            height: 15px;
+            border-radius: 3px;
+        }
+
+        .equation-container {
+            background-color: #f0f0f0;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        footer {
+            margin-top: 40px;
+            text-align: center;
+            padding: 20px;
+            color: #6c757d;
+            border-top: 1px solid #e0e0e0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="mdi mdi-atom-variant"></i> Toroidal Lifter Visualization</h1>
+            <p>Interactive 3D model of a toroidal chamber with helical windings for electrohydrodynamic propulsion</p>
+        </header>
+
+        <div id="canvas-container">
+            <div id="controls">
+                <button class="control-btn" id="toggle-particles"><i class="mdi mdi-pause"></i> Pause Particles</button>
+                <button class="control-btn" id="toggle-fields"><i class="mdi mdi-vector-point"></i> Toggle Fields</button>
+                <button class="control-btn" id="reset-view"><i class="mdi mdi-refresh"></i> Reset View</button>
+            </div>
+        </div>
+
+        <div class="parameters">
+            <div class="parameter-card">
+                <h3><i class="mdi mdi-shape-outline"></i> Torus Geometry</h3>
+                <div>
+                    <label for="major-radius">Major Radius (R): <span id="major-radius-value">5</span></label>
+                    <input type="range" id="major-radius" min="3" max="10" value="5" step="0.1">
+                </div>
+                <div>
+                    <label for="minor-radius">Minor Radius (r): <span id="minor-radius-value">1</span></label>
+                    <input type="range" id="minor-radius" min="0.5" max="3" value="1" step="0.1">
+                </div>
+                <div class="equation-container">
+                    x(θ,φ) = (R + r·cos θ)·cos φ<br>
+                    y(θ,φ) = (R + r·cos θ)·sin φ<br>
+                    z(θ,φ) = r·sin θ
+                </div>
+            </div>
+
+            <div class="parameter-card">
+                <h3><i class="mdi mdi-sine-wave"></i> Helical Winding</h3>
+                <div>
+                    <label for="winding-turns">Number of Turns: <span id="winding-turns-value">8</span></label>
+                    <input type="range" id="winding-turns" min="1" max="20" value="8" step="1">
+                </div>
+                <div>
+                    <label for="winding-thickness">Wire Thickness: <span id="winding-thickness-value">0.1</span></label>
+                    <input type="range" id="winding-thickness" min="0.05" max="0.3" value="0.1" step="0.01">
+                </div>
+                <div>
+                    <label for="current">Current (A): <span id="current-value">10</span></label>
+                    <input type="range" id="current" min="0" max="50" value="10" step="1">
+                </div>
+            </div>
+
+            <div class="parameter-card">
+                <h3><i class="mdi mdi-flash"></i> Electric Field</h3>
+                <div>
+                    <label for="voltage">Voltage (kV): <span id="voltage-value">25</span></label>
+                    <input type="range" id="voltage" min="10" max="50" value="25" step="1">
+                </div>
+                <div>
+                    <label for="field-visibility">Field Visibility: <span id="field-visibility-value">50</span>%</label>
+                    <input type="range" id="field-visibility" min="0" max="100" value="50" step="5">
+                </div>
+            </div>
+
+            <div class="parameter-card">
+                <h3><i class="mdi mdi-atom"></i> Particle Simulation</h3>
+                <div>
+                    <label for="particle-count">Particle Count: <span id="particle-count-value">100</span></label>
+                    <input type="range" id="particle-count" min="10" max="500" value="100" step="10">
+                </div>
+                <div>
+                    <label for="particle-speed">Initial Speed: <span id="particle-speed-value">0.5</span></label>
+                    <input type="range" id="particle-speed" min="0.1" max="2" value="0.5" step="0.1">
+                </div>
+                <div>
+                    <label for="particle-size">Particle Size: <span id="particle-size-value">0.05</span></label>
+                    <input type="range" id="particle-size" min="0.01" max="0.2" value="0.05" step="0.01">
+                </div>
+            </div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="color-box" style="background-color: #3498db;"></div>
+                <span>Toroidal Chamber</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-box" style="background-color: #e74c3c;"></div>
+                <span>Helical Windings</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-box" style="background-color: #f39c12;"></div>
+                <span>Charged Particles</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-box" style="background-color: #2ecc71;"></div>
+                <span>Magnetic Field</span>
+            </div>
+            <div class="legend-item">
+                <div class="color-box" style="background-color: #9b59b6;"></div>
+                <span>Electric Field</span>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Toroidal Lifter Simulation Tool © 2023 | Powered by Three.js</p>
+    </footer>
+
+    <script>
+        // Three.js initialization
+        let scene, camera, renderer, controls;
+        let torus, helixCurve, particles = [];
+        let particleSystem, magneticFieldLines, electricFieldLines;
+        let isParticleAnimating = true;
+        let showFields = true;
+
+        // Parameters
+        let params = {
+            majorRadius: 5,
+            minorRadius: 1,
+            windingTurns: 8,
+            windingThickness: 0.1,
+            current: 10,
+            voltage: 25,
+            fieldVisibility: 50,
+            particleCount: 100,
+            particleSpeed: 0.5,
+            particleSize: 0.05
+        };
+
+        // Initialize the scene
+        init();
+        animate();
+
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 5, 15);
+            
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(document.getElementById('canvas-container').clientWidth, 
+                             document.getElementById('canvas-container').clientHeight);
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            
+            // Controls
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 10, 10);
+            scene.add(directionalLight);
+            
+            // Add a grid
+            const gridHelper = new THREE.GridHelper(30, 30, 0x555555, 0x333333);
+            scene.add(gridHelper);
+            
+            // Create initial objects
+            createTorus();
+            createHelicalWinding();
+            createParticles();
+            createFieldVisualizations();
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize, false);
+            
+            // Setup UI controls
+            setupControls();
+        }
+
+        function createTorus() {
+            // Fix: Create the torus with the same orientation as the other components
+            const geometry = new THREE.TorusGeometry(
+                params.majorRadius, 
+                params.minorRadius, 
+                32, 
+                100
+            );
+            
+            // Fix: Rotate the torus to match the helical winding orientation
+            geometry.rotateX(Math.PI / 2);
+            
+            const material = new THREE.MeshPhongMaterial({ 
+                color: 0x3498db, 
+                transparent: true, 
+                opacity: 0.7,
+                side: THREE.DoubleSide
+            });
+            
+            torus = new THREE.Mesh(geometry, material);
+            scene.add(torus);
+        }
+
+        function createHelicalWinding() {
+            // Create curve points for helix on torus
+            const points = [];
+            const turns = params.windingTurns;
+            
+            for (let i = 0; i <= 360 * turns; i++) {
+                const t = i * Math.PI / 180;
+                const m = turns; // number of helical turns per toroidal revolution
+                
+                const x = (params.majorRadius + params.minorRadius * Math.cos(m * t)) * Math.cos(t);
+                const y = (params.majorRadius + params.minorRadius * Math.cos(m * t)) * Math.sin(t);
+                const z = params.minorRadius * Math.sin(m * t);
+                
+                points.push(new THREE.Vector3(x, z, y)); // Note: we swap y and z for visualization
+            }
+            
+            helixCurve = new THREE.CatmullRomCurve3(points);
+            
+            const tubeGeometry = new THREE.TubeGeometry(
+                helixCurve, 
+                360 * turns, 
+                params.windingThickness, 
+                8, 
+                false
+            );
+            
+            const tubeMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xe74c3c,
+                emissive: 0xba4a3e,
+                emissiveIntensity: 0.2
+            });
+            
+            if (scene.getObjectByName('helixTube')) {
+                scene.remove(scene.getObjectByName('helixTube'));
+            }
+            
+            const helixTube = new THREE.Mesh(tubeGeometry, tubeMaterial);
+            helixTube.name = 'helixTube';
+            scene.add(helixTube);
+        }
+
+        function createParticles() {
+            if (particleSystem) scene.remove(particleSystem);
+            
+            const particleCount = params.particleCount;
+            const particles = new Float32Array(particleCount * 3);
+            const particleGeometry = new THREE.BufferGeometry();
+            const particleColors = new Float32Array(particleCount * 3);
+            
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                const angle = Math.random() * Math.PI * 2;
+                const theta = Math.random() * Math.PI * 2;
+                
+                // Position particles within the torus - adjusted for correct orientation
+                const r = params.minorRadius * Math.sqrt(Math.random());
+                const x = (params.majorRadius + r * Math.cos(theta)) * Math.cos(angle);
+                const y = r * Math.sin(theta); // This will be vertical (up/down)
+                const z = (params.majorRadius + r * Math.cos(theta)) * Math.sin(angle);
+                
+                particles[i3] = x;
+                particles[i3 + 1] = y; // Now y is correctly the vertical axis
+                particles[i3 + 2] = z;
+                
+                // Varying colors from yellow to orange
+                particleColors[i3] = 0.9 + Math.random() * 0.1; // R (close to 1)
+                particleColors[i3 + 1] = 0.5 + Math.random() * 0.3; // G
+                particleColors[i3 + 2] = 0.1 + Math.random() * 0.1; // B (close to 0)
+            }
+            
+            particleGeometry.setAttribute('position', new THREE.BufferAttribute(particles, 3));
+            particleGeometry.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+            
+            const particleMaterial = new THREE.PointsMaterial({
+                size: params.particleSize,
+                vertexColors: true,
+                map: createParticleTexture(),
+                transparent: true,
+                blending: THREE.AdditiveBlending
+            });
+            
+            particleSystem = new THREE.Points(particleGeometry, particleMaterial);
+            particleSystem.name = 'particles';
+            scene.add(particleSystem);
+        }
+
+        function createParticleTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 32;
+            canvas.height = 32;
+            
+            const context = canvas.getContext('2d');
+            const gradient = context.createRadialGradient(16, 16, 0, 16, 16, 16);
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+            gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+            
+            context.fillStyle = gradient;
+            context.fillRect(0, 0, 32, 32);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
+
+        function createFieldVisualizations() {
+            // Simplified magnetic field visualization using arcs
+            createMagneticFieldVisualization();
+            
+            // Simplified electric field visualization using lines
+            createElectricFieldVisualization();
+        }
+
+        function createMagneticFieldVisualization() {
+            if (magneticFieldLines) scene.remove(magneticFieldLines);
+            
+            const lineCount = 40;
+            const fieldGeometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(lineCount * 6); // 2 points per line (start & end)
+            
+            for (let i = 0; i < lineCount; i++) {
+                const i6 = i * 6;
+                const angle = (i / lineCount) * Math.PI * 2;
+                
+                // Adjusted for corrected orientation
+                positions[i6] = (params.majorRadius + params.minorRadius) * Math.cos(angle);
+                positions[i6 + 1] = (i % 4) * 0.4 - 0.6; // Vary height in y-direction now
+                positions[i6 + 2] = (params.majorRadius + params.minorRadius) * Math.sin(angle);
+                
+                // End point - showing field direction
+                const fieldStrength = 0.5 + (params.current / 50);
+                positions[i6 + 3] = (params.majorRadius + params.minorRadius + fieldStrength) * Math.cos(angle);
+                positions[i6 + 4] = positions[i6 + 1] + (Math.sin(angle * 3) * 0.5);
+                positions[i6 + 5] = (params.majorRadius + params.minorRadius + fieldStrength) * Math.sin(angle);
+            }
+            
+            fieldGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            const fieldMaterial = new THREE.LineBasicMaterial({ 
+                color: 0x2ecc71,
+                opacity: params.fieldVisibility / 100,
+                transparent: true
+            });
+            
+            magneticFieldLines = new THREE.LineSegments(fieldGeometry, fieldMaterial);
+            magneticFieldLines.visible = showFields;
+            scene.add(magneticFieldLines);
+        }
+
+        function createElectricFieldVisualization() {
+            if (electricFieldLines) scene.remove(electricFieldLines);
+            
+            const lineCount = 40;
+            const fieldGeometry = new THREE.BufferGeometry();
+            const positions = new Float32Array(lineCount * 6); // 2 points per line
+            
+            for (let i = 0; i < lineCount; i++) {
+                const i6 = i * 6;
+                const angle = (i / lineCount) * Math.PI * 2;
+                const r = params.minorRadius * 0.7;
+                
+                // Fixed orientation alignment
+                positions[i6] = (params.majorRadius + r * Math.cos(angle * 2)) * Math.cos(angle);
+                positions[i6 + 1] = r * Math.sin(angle * 3); // Vertical component
+                positions[i6 + 2] = (params.majorRadius + r * Math.cos(angle * 2)) * Math.sin(angle);
+                
+                // Outer point
+                const fieldStrength = 0.3 + (params.voltage / 100);
+                positions[i6 + 3] = positions[i6] * (1 + fieldStrength * 0.1);
+                positions[i6 + 4] = positions[i6 + 1] * (1 + fieldStrength * 0.3);
+                positions[i6 + 5] = positions[i6 + 2] * (1 + fieldStrength * 0.1);
+            }
+            
+            fieldGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            
+            const fieldMaterial = new THREE.LineBasicMaterial({ 
+                color: 0x9b59b6,
+                opacity: params.fieldVisibility / 100,
+                transparent: true
+            });
+            
+            electricFieldLines = new THREE.LineSegments(fieldGeometry, fieldMaterial);
+            electricFieldLines.visible = showFields;
+            scene.add(electricFieldLines);
+        }
+
+        function setupControls() {
+            // Toggle particle animation
+            document.getElementById('toggle-particles').addEventListener('click', function() {
+                isParticleAnimating = !isParticleAnimating;
+                this.innerHTML = isParticleAnimating ? 
+                    '<i class="mdi mdi-pause"></i> Pause Particles' : 
+                    '<i class="mdi mdi-play"></i> Resume Particles';
+            });
+            
+            // Toggle field visibility
+            document.getElementById('toggle-fields').addEventListener('click', function() {
+                showFields = !showFields;
+                if (magneticFieldLines) magneticFieldLines.visible = showFields;
+                if (electricFieldLines) electricFieldLines.visible = showFields;
+            });
+            
+            // Reset camera view
+            document.getElementById('reset-view').addEventListener('click', function() {
+                camera.position.set(0, 5, 15);
+                controls.target.set(0, 0, 0);
+                controls.update();
+            });
+
+            // Setup range input handlers
+            setupRangeInputHandlers();
+        }
+
+        function setupRangeInputHandlers() {
+            // Torus Geometry
+            document.getElementById('major-radius').addEventListener('input', function() {
+                params.majorRadius = parseFloat(this.value);
+                document.getElementById('major-radius-value').textContent = params.majorRadius;
+                updateGeometry();
+            });
+            
+            document.getElementById('minor-radius').addEventListener('input', function() {
+                params.minorRadius = parseFloat(this.value);
+                document.getElementById('minor-radius-value').textContent = params.minorRadius;
+                updateGeometry();
+            });
+            
+            // Helical Winding
+            document.getElementById('winding-turns').addEventListener('input', function() {
+                params.windingTurns = parseInt(this.value);
+                document.getElementById('winding-turns-value').textContent = params.windingTurns;
+                createHelicalWinding();
+            });
+            
+            document.getElementById('winding-thickness').addEventListener('input', function() {
+                params.windingThickness = parseFloat(this.value);
+                document.getElementById('winding-thickness-value').textContent = params.windingThickness;
+                createHelicalWinding();
+            });
+            
+            document.getElementById('current').addEventListener('input', function() {
+                params.current = parseInt(this.value);
+                document.getElementById('current-value').textContent = params.current;
+                createMagneticFieldVisualization();
+            });
+            
+            // Electric Field
+            document.getElementById('voltage').addEventListener('input', function() {
+                params.voltage = parseInt(this.value);
+                document.getElementById('voltage-value').textContent = params.voltage;
+                createElectricFieldVisualization();
+            });
+            
+            document.getElementById('field-visibility').addEventListener('input', function() {
+                params.fieldVisibility = parseInt(this.value);
+                document.getElementById('field-visibility-value').textContent = params.fieldVisibility;
+                if (magneticFieldLines) magneticFieldLines.material.opacity = params.fieldVisibility / 100;
+                if (electricFieldLines) electricFieldLines.material.opacity = params.fieldVisibility / 100;
+            });
+            
+            // Particle Simulation
+            document.getElementById('particle-count').addEventListener('input', function() {
+                params.particleCount = parseInt(this.value);
+                document.getElementById('particle-count-value').textContent = params.particleCount;
+                createParticles();
+            });
+            
+            document.getElementById('particle-speed').addEventListener('input', function() {
+                params.particleSpeed = parseFloat(this.value);
+                document.getElementById('particle-speed-value').textContent = params.particleSpeed;
+            });
+            
+            document.getElementById('particle-size').addEventListener('input', function() {
+                params.particleSize = parseFloat(this.value);
+                document.getElementById('particle-size-value').textContent = params.particleSize;
+                if (particleSystem) particleSystem.material.size = params.particleSize;
+            });
+        }
+
+        function updateGeometry() {
+            // Update torus
+            scene.remove(torus);
+            createTorus();
+            
+            // Update helix
+            createHelicalWinding();
+            
+            // Update particles
+            createParticles();
+            
+            // Update field visualizations
+            createFieldVisualizations();
+        }
+
+        function animateParticles() {
+            if (!isParticleAnimating || !particleSystem) return;
+            
+            const positions = particleSystem.geometry.attributes.position.array;
+            const count = positions.length / 3;
+            
+            for (let i = 0; i < count; i++) {
+                const i3 = i * 3;
+                
+                // Convert current position to polar coordinates relative to torus center
+                const x = positions[i3];
+                const y = positions[i3 + 1]; // Now correctly the vertical component
+                const z = positions[i3 + 2];
+                
+                // Calculate angle in the XZ plane (toroidal angle)
+                const angle = Math.atan2(z, x);
+                
+                // Calculate distance from origin in XZ plane
+                const distFromOrigin = Math.sqrt(x * x + z * z);
+                
+                // Calculate distance from the center of the circular cross-section
+                const r = Math.sqrt((distFromOrigin - params.majorRadius) ** 2 + y ** 2);
+                
+                // Calculate angle within the circular cross-section (in the plane perpendicular to the toroidal direction)
+                const theta = Math.atan2(y, distFromOrigin - params.majorRadius);
+                
+                // Move particle along the toroidal direction (angle)
+                const newAngle = angle + params.particleSpeed * 0.01;
+                
+                // Calculate new position
+                positions[i3] = (params.majorRadius + r * Math.cos(theta)) * Math.cos(newAngle);
+                positions[i3 + 2] = (params.majorRadius + r * Math.cos(theta)) * Math.sin(newAngle);
+                
+                // Keep vertical position with some oscillation
+                positions[i3 + 1] += Math.sin(newAngle * 5) * 0.01;
+                
+                // Add small random movement to simulate electric field effects
+                positions[i3] += (Math.random() - 0.5) * 0.01;
+                positions[i3 + 1] += (Math.random() - 0.5) * 0.01;
+                positions[i3 + 2] += (Math.random() - 0.5) * 0.01;
+                
+                // Keep particles within the torus
+                const curDist = Math.sqrt(positions[i3] ** 2 + positions[i3 + 2] ** 2);
+                if (Math.abs(curDist - params.majorRadius) > params.minorRadius || 
+                    Math.abs(positions[i3 + 1]) > params.minorRadius) {
+                    
+                    // Reset to a random position within the torus
+                    const newAngle = Math.random() * Math.PI * 2;
+                    const newTheta = Math.random() * Math.PI * 2;
+                    const newR = params.minorRadius * Math.sqrt(Math.random());
+                    
+                    positions[i3] = (params.majorRadius + newR * Math.cos(newTheta)) * Math.cos(newAngle);
+                    positions[i3 + 1] = newR * Math.sin(newTheta); // Correctly vertical
+                    positions[i3 + 2] = (params.majorRadius + newR * Math.cos(newTheta)) * Math.sin(newAngle);
+                }
+            }
+            
+            particleSystem.geometry.attributes.position.needsUpdate = true;
+        }
+
+        function onWindowResize() {
+            const container = document.getElementById('canvas-container');
+            camera.aspect = container.clientWidth / container.clientHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(container.clientWidth, container.clientHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            controls.update();
+            animateParticles();
+            
+            renderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
