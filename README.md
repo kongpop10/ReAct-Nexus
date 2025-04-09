@@ -18,6 +18,7 @@ A **modular Streamlit-based platform** integrating multiple AI models, real-time
   - Schema migration for legacy files
   - Delete specific messages in conversations
 - **File Operations**: Read, write, delete, list files within a workspace directory
+- **Workspace Explorer**: Browse and open files with system applications directly from the UI
 - **Memory Management**: Store and manage conversation context and variables
 - **Specialized Component Framework (SCF)**:
   - Break down complex problems into specialized sub-problems
@@ -135,6 +136,17 @@ Navigate to the local URL provided by Streamlit to access the interface.
 
 The application includes a "Deep Research Mode" toggle in the sidebar above the Conversations section. When enabled, the AI will perform more thorough research with more detailed results. This is useful for complex queries that require in-depth analysis.
 
+### Workspace Explorer
+
+The Workspace sidebar page allows you to browse and interact with files in the workspace directory:
+
+1. Select "Workspace" from the sidebar navigation options
+2. Browse through directories by clicking on them
+3. Navigate back using the breadcrumb navigation
+4. Click on any file to open it with the default system application for that file type
+
+This feature provides a convenient way to manage and access files created or used by the AI assistant.
+
 ---
 
 ## Project Structure
@@ -153,10 +165,14 @@ The application has been refactored for improved modularity and maintainability:
 │   ├── __init__.py          # Tool registry
 │   ├── web_tools.py         # Web search and scraping tools
 │   ├── file_tools.py        # File operations
+│   ├── enhanced_file_tools.py # Enhanced file listing
+│   ├── system_tools.py      # System interaction tools
 │   ├── memory_tools.py      # Memory management
 │   ├── knowledge_tools.py   # Knowledge base operations
 │   ├── execution_tools.py   # Python execution
 │   ├── stock_tools.py       # Stock data retrieval
+│   ├── firecrawl_tools.py   # Advanced web scraping
+│   ├── text_tools.py        # Text processing utilities
 │
 ├── llm/                     # LLM interaction
 │   ├── __init__.py
@@ -176,12 +192,14 @@ The application has been refactored for improved modularity and maintainability:
 │   ├── __init__.py
 │   ├── chat.py              # Chat interface
 │   ├── sidebar.py           # Sidebar components
+│   ├── workspace_sidebar.py # Workspace file explorer
 │
 ├── utils/                   # Utility functions
 │   ├── __init__.py
 │   ├── conversation.py      # Conversation management
 │   ├── formatting.py        # Text formatting
 │   ├── status.py            # Status indicators
+│   ├── file_system.py       # File system utilities
 │
 ├── storage/                 # Storage management
 │   ├── __init__.py
@@ -234,6 +252,7 @@ The application has been refactored for improved modularity and maintainability:
 - The app **allows arbitrary Python code execution**, which is **unsafe for production**—use only in a secure, sandboxed environment.
 - The UI has been optimized for a more streamlined user experience with compact conversation management and configurable components.
 - The application supports Windows, macOS, and Linux platforms, with Windows-specific shortcuts provided for convenience.
+- The Workspace Explorer feature provides cross-platform file opening capabilities, using the appropriate method for each operating system.
 
 ---
 

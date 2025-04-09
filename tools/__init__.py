@@ -11,6 +11,7 @@ from .execution_tools import execute_python, reset_python_environment, list_pyth
 from .stock_tools import get_stock_data
 from .firecrawl_tools import firecrawl_scrape, firecrawl_crawl, firecrawl_map
 from .text_tools import text_extract_urls
+from .system_tools import open_file
 
 # Dictionary of all available tools
 TOOLS = {
@@ -38,4 +39,5 @@ TOOLS = {
     "firecrawl_map": firecrawl_map,
     "text_extract_urls": text_extract_urls,
     "enhanced_list_files": enhanced_list_files,
+    "open_file": open_file,
 }

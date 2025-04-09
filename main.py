@@ -30,6 +30,7 @@ from llm.executor import run_executor_step
 
 # Import UI components
 from ui.sidebar import render_configuration_sidebar, render_conversation_sidebar
+from ui.workspace_sidebar import render_workspace_sidebar
 from ui.chat import (
     display_messages, display_plan_progress, display_execution_results,
     handle_execution_step, handle_plan_completion, handle_plan_failure,
@@ -132,10 +133,12 @@ migrate_conversations_schema()
 client = get_openai_client(st.session_state.api_key, st.session_state.base_url)
 
 # Sidebar navigation
-page = st.sidebar.radio("Sidebar Pages", ["Configuration", "Conversation Management"], index=1)
+page = st.sidebar.radio("Sidebar Pages", ["Configuration", "Conversation Management", "Workspace"], index=1)
 
 if page == "Configuration":
     render_configuration_sidebar(knowledge_manager)
+elif page == "Workspace":
+    render_workspace_sidebar()
 else:  # Conversation Management
     render_conversation_sidebar(client)
 
