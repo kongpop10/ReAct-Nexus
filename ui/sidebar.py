@@ -36,8 +36,6 @@ def render_configuration_sidebar(knowledge_manager):
         try:
             from app_config import scf_manager
             if scf_manager:
-                st.success("SCF is enabled")
-
                 # Display available components
                 st.markdown("#### Available Components")
                 for name, component in scf_manager.components.items():
@@ -47,11 +45,6 @@ def render_configuration_sidebar(knowledge_manager):
                 st.markdown("#### Routing Rules")
                 for rule in scf_manager.routing_rules:
                     st.markdown(f"- Pattern: `{rule['pattern']}` → Component: **{rule['component']}**")
-
-                # Option to reload configuration
-                if st.button("Reload SCF Configuration"):
-                    scf_manager.load_config()
-                    st.success("SCF configuration reloaded")
             else:
                 st.warning("SCF manager is not initialized")
         except (ImportError, AttributeError):
