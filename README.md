@@ -2,6 +2,8 @@
 
 A **modular Streamlit-based platform** integrating multiple AI models, real-time search, web scraping, stock data retrieval, conversation management, and Python code execution capabilities with advanced planning and execution features. ReAct-Nexus provides a comprehensive environment for building and interacting with AI-powered conversational agents.
 
+![ReAct-Nexus Screenshot](Screenshot.png)
+
 ---
 
 ## Features
