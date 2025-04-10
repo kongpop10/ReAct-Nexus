@@ -57,10 +57,6 @@ def render_configuration_sidebar(knowledge_manager):
         except (ImportError, AttributeError):
             st.error("SCF is not available. Make sure the SCF module is properly installed.")
 
-    # Add a note about Knowledge Base being moved to its own sidebar page
-    with st.sidebar.expander("📖 Knowledge Base", expanded=False):
-        st.info("The Knowledge Base has been moved to its own sidebar page. Please use the 'Knowledge Base' option in the sidebar navigation to access it.")
-
     # Memory Management UI
     with st.sidebar.expander("🧠 Conversation Memory", expanded=False):
         # Display current memory items
