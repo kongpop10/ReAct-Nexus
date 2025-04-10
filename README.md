@@ -19,6 +19,7 @@ A **modular Streamlit-based platform** integrating multiple AI models, real-time
   - Delete specific messages in conversations
 - **File Operations**: Read, write, delete, list files within a workspace directory
 - **Workspace Explorer**: Browse and open files with system applications directly from the UI
+- **Knowledge Base Sidebar**: Direct access to knowledge base management without navigating through configuration
 - **Memory Management**: Store and manage conversation context and variables
 - **Specialized Component Framework (SCF)**:
   - Break down complex problems into specialized sub-problems
@@ -147,6 +148,18 @@ The Workspace sidebar page allows you to browse and interact with files in the w
 
 This feature provides a convenient way to manage and access files created or used by the AI assistant.
 
+### Knowledge Base Sidebar
+
+The Knowledge Base sidebar page provides direct access to manage your knowledge sources:
+
+1. Select "Knowledge Base" from the sidebar navigation options
+2. View existing web sources and local files in your knowledge base
+3. Add new web sources by providing URLs
+4. Upload local markdown files to add to your knowledge base
+5. Delete knowledge sources that are no longer needed
+
+This dedicated sidebar page makes it more convenient to access and manage your knowledge base without having to navigate through the configuration page.
+
 ---
 
 ## Project Structure
@@ -193,6 +206,7 @@ The application has been refactored for improved modularity and maintainability:
 │   ├── chat.py              # Chat interface
 │   ├── sidebar.py           # Sidebar components
 │   ├── workspace_sidebar.py # Workspace file explorer
+│   ├── knowledge_base_sidebar.py # Knowledge base management
 │
 ├── utils/                   # Utility functions
 │   ├── __init__.py
