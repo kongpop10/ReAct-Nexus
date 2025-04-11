@@ -79,8 +79,23 @@ def kb_list() -> str:
     except Exception as e:
         return f"Error listing knowledge base entries: {str(e)}"
 
-def kb_get(entry_id: str = None, memory_key: str = None) -> str:
+def kb_get(entry_id: str = None, memory_key: str = None, **kwargs) -> str:
     """Gets the content of a knowledge base entry by ID or memory key."""
+    # Handle potential numeric keys or positional arguments
+    if not entry_id and not memory_key:
+        # Check if there are numeric keys in kwargs (from LLM responses)
+        for k, v in kwargs.items():
+            try:
+                # If the key is a numeric string or can be converted to int
+                int(k)
+                # Use the first value found as entry_id
+                if isinstance(v, str) and v.strip():
+                    entry_id = v
+                    break
+            except (ValueError, TypeError):
+                continue
+
+    # Log what we're actually using
     update_tool_status("kb_get", entry_id=entry_id, memory_key=memory_key)
 
     if not entry_id and not memory_key:

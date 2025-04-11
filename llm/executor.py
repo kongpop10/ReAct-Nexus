@@ -231,6 +231,15 @@ Provide *only* the JSON object as your response.
                     raise ValueError("memory_set requires both 'key' and 'value' parameters")
                 elif action['tool'] == "web_search" and ('query' not in tool_args or not tool_args['query']):
                     raise ValueError("web_search requires a 'query' parameter")
+                elif action['tool'] == "kb_get" and not any(k in tool_args for k in ['entry_id', 'memory_key']):
+                    # For kb_get, check if there are any numeric keys that might be intended as entry_id
+                    numeric_keys = [k for k in tool_args.keys() if isinstance(k, (int, str)) and str(k).isdigit()]
+                    if numeric_keys:
+                        # If we have numeric keys, use the first one's value as entry_id
+                        first_key = numeric_keys[0]
+                        tool_args['entry_id'] = tool_args.pop(first_key)
+                    else:
+                        raise ValueError("kb_get requires either 'entry_id' or 'memory_key' parameter")
 
                 # Execute the tool
                 tool_result = tool_func(**tool_args)
