@@ -72,10 +72,15 @@ pip install -r requirements.txt
 Create a `.env` file in the root directory and add your API keys:
 
 ```
-# You can use either LLM_API_KEY or OPENROUTER_API_KEY (LLM_API_KEY takes precedence)
-LLM_API_KEY=your_llm_api_key
+# OpenRouter API Key
+LLM_API_KEY=your_openrouter_api_key
 # Optional: LLM_API_BASE_URL=your_llm_api_base_url
 
+# Provider-specific API Keys
+OPENAI_API_KEY=your_openai_api_key
+XAI_API_KEY=your_xai_api_key
+
+# Other service API keys
 TAVILY_API_KEY=your_tavily_key
 ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key
 FIRECRAWL_API_KEY=your_firecrawl_key
@@ -83,20 +88,40 @@ FIRECRAWL_API_KEY=your_firecrawl_key
 
 These are required for AI completions, web search, stock data, and advanced web scraping/crawling respectively.
 
-The default API base URL is set to OpenRouter (`https://openrouter.ai/api/v1`), but you can configure it to use any compatible API endpoint.
+The default API base URL is set to OpenRouter (`https://openrouter.ai/api/v1`), but you can configure it to use any compatible API endpoint. For OpenAI, the base URL is fixed at `https://api.openai.com/v1`, and for xAI (Grok), it's fixed at `https://api.x.ai/v1`.
 
 ### Model Configuration
 
 The application uses different models for different tasks:
 
-- **Planner Model**: Used for generating execution plans (default: `google/gemini-2.0-flash-thinking-exp:free`)
-- **Executor Model**: Used for executing plan steps (default: `google/gemini-2.0-flash-exp:free`)
-- **Summarizer Model**: Used for generating final responses (default: `google/gemini-2.0-flash-thinking-exp:free`)
-- **Title Model**: Used for generating conversation titles (default: `google/gemini-2.0-flash-exp:free`)
+- **Planner Model**: Used for generating execution plans
+- **Executor Model**: Used for executing plan steps
+- **Summarizer Model**: Used for generating final responses
+- **Title Model**: Used for generating conversation titles
+
+Each provider has its own set of default models:
+
+#### OpenRouter (Default)
+- **Planner Model**: `google/gemini-2.5-pro-exp-03-25:free`
+- **Executor Model**: `google/gemini-2.0-flash-thinking-exp-1219:free`
+- **Summarizer Model**: `deepseek/deepseek-chat-v3-0324:free`
+- **Title Model**: `google/gemini-2.0-flash-exp:free`
+
+#### OpenAI
+- **Planner Model**: `o4-mini`
+- **Executor Model**: `o4-mini`
+- **Summarizer Model**: `gpt-4.1`
+- **Title Model**: `gpt-4.1-nano`
+
+#### xAI (Grok)
+- **Planner Model**: `grok-3-mini-beta`
+- **Executor Model**: `grok-3-mini-beta`
+- **Summarizer Model**: `grok-3-mini-beta`
+- **Title Model**: `grok-3-mini-beta`
 
 Note: The Summarizer Model is different from the Synthesizer component in the Specialized Component Framework. The Summarizer Model is used for generating the final response to the user, while the Synthesizer component is a specialized agent that uses the Planner and Executor models with a specific system prompt focused on combining information from multiple sources.
 
-These can be configured in the UI or by editing the `model_config.json` file.
+These can be configured in the UI or by editing the `model_config.json` file. When an API base URL is provided, the application will attempt to fetch available models for OpenAI and Grok compatible providers.
 
 ### SCF Configuration
 
@@ -161,6 +186,16 @@ The Knowledge Base sidebar page provides direct access to manage your knowledge 
 5. Delete knowledge sources that are no longer needed
 
 This dedicated sidebar page makes it more convenient to access and manage your knowledge base without having to navigate through the configuration page.
+
+### Knowledge Base Integration
+
+The application automatically integrates knowledge base content into its responses:
+
+1. When content is added to the knowledge base, it's stored both in the file system and in memory with a unique key
+2. During planning, the system includes information about available knowledge base entries
+3. The executor can search the knowledge base using `kb_search` and retrieve specific content using `kb_get`
+4. Retrieved knowledge is incorporated into the final response
+5. Different SCF components have different capabilities for interacting with the knowledge base
 
 ---
 
@@ -269,6 +304,8 @@ The application has been refactored for improved modularity and maintainability:
 - The UI has been optimized for a more streamlined user experience with compact conversation management and configurable components.
 - The application supports Windows, macOS, and Linux platforms, with Windows-specific shortcuts provided for convenience.
 - The Workspace Explorer feature provides cross-platform file opening capabilities, using the appropriate method for each operating system.
+- The LLM configuration supports multiple providers (OpenRouter, OpenAI, xAI) with provider-specific model selections.
+- The application supports the `reasoning_effort` parameter for OpenAI and xAI models that support it (like o3-mini, o4-mini, and grok-3-mini-beta).
 
 ---
 
@@ -281,7 +318,7 @@ MIT License
 ## Credits
 
 - Built with [Streamlit](https://streamlit.io/)
-- AI powered by [OpenAI](https://openai.com/), [Google Gemini](https://ai.google.dev/), and other LLMs (via [OpenRouter](https://openrouter.ai/))
+- AI powered by [OpenAI](https://openai.com/), [Google Gemini](https://ai.google.dev/), [xAI Grok](https://x.ai/), [DeepSeek](https://deepseek.ai/), and other LLMs (via [OpenRouter](https://openrouter.ai/))
 - Web search via [Tavily](https://www.tavily.com/)
 - Advanced web scraping via [Firecrawl](https://firecrawl.dev/)
 - Stock data via [Alpha Vantage](https://www.alphavantage.co/)
